@@ -11,4 +11,11 @@ export type {
   InternalObjectStore,
   InternalValueStore,
 } from "./field";
-export type { FormConfig, FormDeps, InternalFormStore } from "./form";
+export type {
+  FormConfig,
+  FormDeps,
+  FormValidator,
+  InternalFormStore,
+  ValidationIssue,
+  ValidationMode,
+} from "./form";

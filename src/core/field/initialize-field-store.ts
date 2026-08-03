@@ -9,6 +9,7 @@ import {
   typeList,
 } from "../schema-utils";
 import type {
+  FieldElement,
   InternalArrayStore,
   InternalFieldStore,
   InternalFormStore,
@@ -52,8 +53,12 @@ export function initializeFieldStore(
   internalFieldStore.control = inferControl(schema);
   internalFieldStore.isNullish = nullish;
 
-  // Initialize elements array and common signals
-  internalFieldStore.elements = [];
+  // Initialize elements array and common signals. `initialElements` and
+  // `elements` start as the same array so `reset` can restore elements that
+  // array methods move between field stores (see `InternalBaseStore`).
+  const initialElements: FieldElement[] = [];
+  internalFieldStore.initialElements = initialElements;
+  internalFieldStore.elements = initialElements;
   internalFieldStore.errors = createSignal(null);
   internalFieldStore.isTouched = createSignal(false);
   internalFieldStore.isEdited = createSignal(false);

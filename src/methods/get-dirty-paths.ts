@@ -1,6 +1,7 @@
 import { getFieldBool } from "../core/field/get-field-bool";
 import { getFieldStore } from "../core/field/get-field-store";
-import type { InternalFieldStore, InternalFormStore, Path } from "../core/types";
+import type { InternalFieldStore, Path } from "../core/types";
+import { type FormRef, internalOf } from "./form-ref";
 
 /**
  * Returns the paths to the dirty fields of the form (or of the subtree at
@@ -14,9 +15,10 @@ import type { InternalFieldStore, InternalFormStore, Path } from "../core/types"
  *
  * @returns The list of paths to the dirty fields.
  */
-export function getDirtyPaths(form: InternalFormStore, path?: Path): Path[] {
+export function getDirtyPaths(form: FormRef, path?: Path): Path[] {
+  const internal = internalOf(form);
   const paths: Path[] = [];
-  collectDirtyPaths(path ? getFieldStore(form, path) : form, paths);
+  collectDirtyPaths(path ? getFieldStore(internal, path) : internal, paths);
   return paths;
 }
 
