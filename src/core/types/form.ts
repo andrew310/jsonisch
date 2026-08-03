@@ -3,6 +3,58 @@ import type { InternalObjectStore } from "./field";
 import type { JsonSchema } from "./schema";
 
 /**
+ * When validation runs. `validate` is the mode that arms validation the
+ * first time; `revalidate` takes over once the form is in the "already
+ * validated" state (submitted, or the triggering subtree has errors) — the
+ * formisch two-mode model: validate on submit, revalidate on input.
+ */
+export type ValidationMode =
+  | "initial"
+  | "touch"
+  | "input"
+  | "change"
+  | "blur"
+  | "submit";
+
+/**
+ * One validation issue in the injected validator's output. Deliberately
+ * AJV-shaped (`ErrorObject` subset) so an app can pass a compiled AJV
+ * validate function's `errors` through unchanged — jsonisch itself never
+ * depends on AJV.
+ */
+export interface ValidationIssue {
+  /**
+   * JSON-Pointer to the failing value (`""` for the root). Routed to the
+   * field store's `errors` signal; an unroutable pointer lands on the
+   * nearest addressable ancestor.
+   */
+  readonly instancePath?: string | undefined;
+  /**
+   * The human-readable message. Falls back to a generic message when absent.
+   */
+  readonly message?: string | undefined;
+  /**
+   * The failed JSON-Schema keyword. `required` issues point at the parent
+   * object; routing appends `params.missingProperty` so the error lands on
+   * the missing field itself.
+   */
+  readonly keyword?: string | undefined;
+  /**
+   * Keyword-specific parameters (e.g. `missingProperty` for `required`).
+   */
+  readonly params?: Record<string, unknown> | undefined;
+}
+
+/**
+ * The injected validator: compiled ONCE per schema by the caller, returns
+ * the issues for an input (`null`/`undefined`/empty for a valid input).
+ * Synchronous by design — AJV is sync.
+ */
+export type FormValidator = (
+  input: unknown,
+) => readonly ValidationIssue[] | null | undefined;
+
+/**
  * Configuration for creating a form store.
  */
 export interface FormConfig {
@@ -27,8 +79,20 @@ export interface FormConfig {
    * required strings start as `""`, every other type as `undefined`).
    */
   readonly emptyInput?: Record<string, unknown>;
-  // TODO(LOS-539): validation/revalidation mode config once the AJV rollout
-  // policy (per-form opt-in) is wired.
+  /**
+   * The injected validator, compiled once per schema by the caller. Without
+   * one the form always validates successfully (enforcement rollout is
+   * per-form opt-in).
+   */
+  readonly validator?: FormValidator | undefined;
+  /**
+   * The validation mode of the form. Defaults to `"submit"`.
+   */
+  readonly validate?: ValidationMode | undefined;
+  /**
+   * The revalidation mode of the form. Defaults to `"input"`.
+   */
+  readonly revalidate?: Exclude<ValidationMode, "initial"> | undefined;
 }
 
 /**
@@ -36,10 +100,8 @@ export interface FormConfig {
  * (`createFormStore(config, deps)`). Shapes are not settled.
  */
 export interface FormDeps {
-  // TODO(LOS-539): injected AJV validator (compiled once per schema,
-  // per-field issue routing into the `errors` signals).
   // TODO(LOS-539): injected calc engine ({ evaluate, extractDependencies })
-  // from @rwa/formulas for the derivation graph.
+  // from @rwa/formulas for the derivation graph (v1c).
 }
 
 /**
@@ -51,6 +113,23 @@ export interface InternalFormStore extends InternalObjectStore {
    * read by the walk when defaulting required fields without initial input.
    */
   emptyInput: Record<string, unknown>;
+  /**
+   * The injected validator, or `undefined` for a form without enforcement.
+   */
+  validator: FormValidator | undefined;
+  /**
+   * The validation mode of the form.
+   */
+  validate: ValidationMode;
+  /**
+   * The revalidation mode of the form.
+   */
+  revalidate: Exclude<ValidationMode, "initial">;
+  /**
+   * The number of active validators (kept as a counter so a future async
+   * validator cannot flicker `isValidating`).
+   */
+  validators: number;
   /**
    * The form element (react adapter only; unset on the server).
    */

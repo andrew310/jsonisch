@@ -1,6 +1,7 @@
 import { getDirtyFieldInput } from "../core/field/get-dirty-field-input";
 import { getFieldStore } from "../core/field/get-field-store";
-import type { InternalFormStore, Path } from "../core/types";
+import type { Path } from "../core/types";
+import { type FormRef, internalOf } from "./form-ref";
 
 /**
  * Retrieves only the dirty input values of the field at the given path, or
@@ -14,6 +15,7 @@ import type { InternalFormStore, Path } from "../core/types";
  *
  * @returns The dirty input, or `undefined`.
  */
-export function getDirtyInput(form: InternalFormStore, path?: Path): unknown {
-  return getDirtyFieldInput(path ? getFieldStore(form, path) : form);
+export function getDirtyInput(form: FormRef, path?: Path): unknown {
+  const internal = internalOf(form);
+  return getDirtyFieldInput(path ? getFieldStore(internal, path) : internal);
 }

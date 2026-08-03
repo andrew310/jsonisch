@@ -17,7 +17,7 @@ import { resetItemState } from "./reset-item-state";
  * arrays, its item count) against the start baseline. Content changes live
  * on the children, not here.
  */
-function computeContainerDirty(
+export function computeContainerDirty(
   internalFieldStore: InternalArrayStore | InternalObjectStore,
 ): boolean {
   const presenceDirty = !isPresenceEqual(

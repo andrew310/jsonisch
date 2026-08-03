@@ -66,6 +66,14 @@ export interface InternalBaseStore {
    */
   elements: FieldElement[];
   /**
+   * The elements the field registered itself (its reset baseline). Array
+   * methods move `elements` between field stores during reorders; `reset`
+   * restores each field's original elements via `elements = initialElements`.
+   * Starts as the SAME array reference as `elements` so registrations made
+   * before any reorder land in both.
+   */
+  initialElements: FieldElement[];
+  /**
    * The errors of the field (validation + calc, one channel).
    */
   errors: Signal<FieldErrors>;

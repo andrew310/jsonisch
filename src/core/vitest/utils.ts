@@ -1,12 +1,16 @@
 import { getFieldStore } from "../field/get-field-store";
 import { createFormStore } from "../form/create-form-store";
 import type {
+  FieldElement,
+  FormValidator,
   InternalArrayStore,
   InternalFormStore,
   InternalObjectStore,
   InternalValueStore,
   JsonSchema,
   Path,
+  ValidationIssue,
+  ValidationMode,
 } from "../types";
 
 /**
@@ -16,6 +20,9 @@ interface CreateTestStoreConfig {
   initialInput?: unknown;
   offFormValues?: Record<string, unknown>;
   emptyInput?: Record<string, unknown>;
+  validator?: FormValidator;
+  validate?: ValidationMode;
+  revalidate?: Exclude<ValidationMode, "initial">;
 }
 
 /**
@@ -31,6 +38,61 @@ export function createTestStore(
   config: CreateTestStoreConfig = {},
 ): InternalFormStore {
   return createFormStore({ schema, ...config });
+}
+
+/**
+ * Builds an AJV-shaped validation issue for a JSON-Pointer instance path.
+ */
+export function issue(
+  instancePath: string,
+  message: string,
+  extra?: Partial<ValidationIssue>,
+): ValidationIssue {
+  return { instancePath, message, ...extra };
+}
+
+/**
+ * Builds an AJV-shaped `required` issue: the instance path points at the
+ * object; the missing property rides in `params`.
+ */
+export function requiredIssue(
+  instancePath: string,
+  missingProperty: string,
+): ValidationIssue {
+  return {
+    instancePath,
+    keyword: "required",
+    message: `must have required property '${missingProperty}'`,
+    params: { missingProperty },
+  };
+}
+
+/**
+ * A validator that always returns the same canned issues (`null` for a
+ * validator that always passes).
+ */
+export function staticValidator(
+  issues: readonly ValidationIssue[] | null,
+): FormValidator {
+  return () => issues;
+}
+
+/**
+ * A fake focusable element for node-environment tests: `focus()` records
+ * the element as its root's `activeElement`, which is exactly what
+ * `focusFieldElement` reads back.
+ */
+export function focusableElement(): FieldElement & { focused: boolean } {
+  const root = { activeElement: null as unknown };
+  const element = {
+    focused: false,
+    focus() {
+      root.activeElement = element;
+      element.focused = true;
+    },
+    getRootNode: () => root,
+  };
+  return element as unknown as FieldElement & { focused: boolean };
 }
 
 /**

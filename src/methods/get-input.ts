@@ -1,6 +1,7 @@
 import { getFieldInput } from "../core/field/get-field-input";
 import { getFieldStore } from "../core/field/get-field-store";
-import type { InternalFormStore, Path } from "../core/types";
+import type { Path } from "../core/types";
+import { type FormRef, internalOf } from "./form-ref";
 
 /**
  * Retrieves the current input value of the field at the given path, or the
@@ -12,6 +13,7 @@ import type { InternalFormStore, Path } from "../core/types";
  *
  * @returns The input value.
  */
-export function getInput(form: InternalFormStore, path?: Path): unknown {
-  return getFieldInput(path ? getFieldStore(form, path) : form);
+export function getInput(form: FormRef, path?: Path): unknown {
+  const internal = internalOf(form);
+  return getFieldInput(path ? getFieldStore(internal, path) : internal);
 }

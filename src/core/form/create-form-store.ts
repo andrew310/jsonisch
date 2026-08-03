@@ -32,6 +32,12 @@ export function createFormStore(config: FormConfig): InternalFormStore {
   // so the field stores can read it from the form store
   store.emptyInput = { ...DEFAULT_EMPTY_INPUT, ...config.emptyInput };
 
+  // Set validation config (validator injected pre-compiled, once per schema)
+  store.validator = config.validator;
+  store.validate = config.validate ?? "submit";
+  store.revalidate = config.revalidate ?? "input";
+  store.validators = 0;
+
   // Initialize form state signals
   store.isSubmitting = createSignal(false);
   store.isSubmitted = createSignal(false);

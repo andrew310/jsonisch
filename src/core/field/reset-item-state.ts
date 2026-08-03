@@ -4,7 +4,11 @@ import {
   readOwn,
   resolveValueInput,
 } from "../schema-utils";
-import type { InternalFieldStore, InternalFormStore } from "../types";
+import type {
+  FieldElement,
+  InternalFieldStore,
+  InternalFormStore,
+} from "../types";
 import { initializeFieldStore } from "./initialize-field-store";
 
 /**
@@ -28,7 +32,15 @@ export function resetItemState(
   keepStart = false,
 ): void {
   batch(() => {
-    internalFieldStore.elements = [];
+    // Clear elements, keeping `initialElements` in sync while the store
+    // still owns its elements (same reference). After a reorder moved
+    // elements in, the original owner's `initialElements` must survive so
+    // `reset` can restore it.
+    const elements: FieldElement[] = [];
+    if (internalFieldStore.elements === internalFieldStore.initialElements) {
+      internalFieldStore.initialElements = elements;
+    }
+    internalFieldStore.elements = elements;
     internalFieldStore.errors.value = null;
     internalFieldStore.isTouched.value = false;
     internalFieldStore.isEdited.value = false;

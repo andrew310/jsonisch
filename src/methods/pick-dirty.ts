@@ -1,5 +1,6 @@
 import { getFieldBool } from "../core/field/get-field-bool";
-import type { InternalFieldStore, InternalFormStore } from "../core/types";
+import type { InternalFieldStore } from "../core/types";
+import { type FormRef, internalOf } from "./form-ref";
 
 /**
  * Picks only the dirty parts of the given value, using the form's dirty
@@ -14,14 +15,15 @@ import type { InternalFieldStore, InternalFormStore } from "../core/types";
  * @returns The dirty parts of the value, or `undefined`.
  */
 export function pickDirty(
-  form: InternalFormStore,
+  form: FormRef,
   from: Record<string, unknown>,
 ): Record<string, unknown> | undefined {
-  if (!getFieldBool(form, "isDirty")) {
+  const internal = internalOf(form);
+  if (!getFieldBool(internal, "isDirty")) {
     return undefined;
   }
 
-  const result = pickFieldValue(form, from);
+  const result = pickFieldValue(internal, from);
 
   // Return undefined if no dirty property ended up in the result, which
   // can happen when every dirty key is absent from the supplied value
