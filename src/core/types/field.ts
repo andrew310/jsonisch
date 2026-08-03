@@ -1,20 +1,13 @@
-/**
- * PLACEHOLDER store types — signatures only.
- *
- * The schema walk (`createFormStore` building this tree from a JSON-Schema)
- * is intentionally NOT implemented yet: field-kind naming is still being
- * decided in a parallel session. Everything in this file is provisional and
- * expected to be renamed/extended when that lands.
- */
+import type { ControlKind } from "../control";
 import type { Signal } from "../signal";
 import type { Path } from "./path";
 import type { JsonSchema } from "./schema";
 
 /**
- * The kind of a field store node.
- *
- * PROVISIONAL naming — `array | object | value` mirrors the reference
- * architecture (formisch) until the jsonisch vocabulary is settled.
+ * The structural kind of a field store node, mirroring the JSON-Schema
+ * shape: `properties` → object, single-schema `items` → array, everything
+ * else (including `items`-less array-typed nodes, whose whole array is the
+ * value) → value. Orthogonal to `ControlKind`, the widget vocabulary.
  */
 export type FieldKind = "array" | "object" | "value";
 
@@ -56,6 +49,18 @@ export interface InternalBaseStore {
    */
   schema: JsonSchema;
   /**
+   * The widget kind this field renders as, resolved once at walk time via
+   * `inferControl` (settled vocabulary; legacy `x-field-type` values
+   * translated at read time).
+   */
+  control: ControlKind;
+  /**
+   * Whether the field accepts a nullish value: its `type` includes `"null"`
+   * or its key is not in the parent's `required` list. Nullish fields keep
+   * `undefined`/`null` instead of defaulting to their empty input.
+   */
+  isNullish: boolean;
+  /**
    * The DOM elements bound to the field (react adapter only; empty on the
    * server).
    */
@@ -86,9 +91,6 @@ export interface InternalBaseStore {
 /**
  * Presence marker for container (array/object) inputs: `true` when the value
  * lives in the children, or the nullish value itself.
- *
- * PROVISIONAL — mirrors the reference architecture; may change with the
- * schema walk.
  */
 export type ContainerInput = true | null | undefined;
 
@@ -97,6 +99,11 @@ export type ContainerInput = true | null | undefined;
  */
 export interface InternalArrayStore extends InternalBaseStore {
   kind: "array";
+  /**
+   * The single item schema, validated non-tuple at walk time (so growth
+   * paths never re-trust `schema.items`).
+   */
+  itemSchema: JsonSchema;
   /**
    * The child stores, one per array item.
    */
@@ -113,8 +120,20 @@ export interface InternalArrayStore extends InternalBaseStore {
    * The current input presence.
    */
   input: Signal<ContainerInput>;
-  // TODO(LOS-539): stable item-id signals (initialItems/startItems/items)
-  // for insert/move/remove/swap — decide with the schema walk.
+  /**
+   * The initial item IDs (reset target; does not move with items).
+   */
+  initialItems: Signal<string[]>;
+  /**
+   * The start item IDs (dirty baseline for length changes).
+   */
+  startItems: Signal<string[]>;
+  /**
+   * The current item IDs, one stable ID per array item. The item count is
+   * the authoritative array length (`children` may hold stale stores past
+   * the end after a shrink, kept for baseline reuse on regrow).
+   */
+  items: Signal<string[]>;
 }
 
 /**

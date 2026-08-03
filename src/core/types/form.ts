@@ -1,7 +1,3 @@
-/**
- * PLACEHOLDER form store types — signatures only; no schema-walk
- * implementation yet (see field.ts header).
- */
 import type { Signal } from "../signal";
 import type { InternalObjectStore } from "./field";
 import type { JsonSchema } from "./schema";
@@ -25,6 +21,12 @@ export interface FormConfig {
    * settable signal on the store; `applyBaseline` updates it.
    */
   readonly offFormValues?: Record<string, unknown>;
+  /**
+   * The empty input a required field without an initial input starts at,
+   * keyed by JSON-Schema type. Merged over the default (`{ string: "" }` —
+   * required strings start as `""`, every other type as `undefined`).
+   */
+  readonly emptyInput?: Record<string, unknown>;
   // TODO(LOS-539): validation/revalidation mode config once the AJV rollout
   // policy (per-form opt-in) is wired.
 }
@@ -44,6 +46,11 @@ export interface FormDeps {
  * The internal form store: the root object node plus form-level state.
  */
 export interface InternalFormStore extends InternalObjectStore {
+  /**
+   * The resolved empty-input config (defaults merged with the form config),
+   * read by the walk when defaulting required fields without initial input.
+   */
+  emptyInput: Record<string, unknown>;
   /**
    * The form element (react adapter only; unset on the server).
    */
