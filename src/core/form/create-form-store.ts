@@ -1,6 +1,7 @@
 import { buildDerivation } from "../derivation/build-derivation";
 import { initializeFieldStore } from "../field/initialize-field-store";
 import { createSignal } from "../framework";
+import { buildMeta } from "../meta/build-meta";
 import type { FormConfig, InternalFormStore } from "../types";
 
 /**
@@ -53,6 +54,10 @@ export function createFormStore(config: FormConfig): InternalFormStore {
     config.initialInput,
     [],
   );
+
+  // Build the meta channel (companion decode → mode/entry state) BEFORE the
+  // derivation graph, which reuses the estimate mode signal for its pin
+  buildMeta(store as InternalFormStore, config.companions);
 
   // Build the derivation graph over the walked tree (root-level `x-formula`
   // fields become computed signals; no-op without an injected calc engine)

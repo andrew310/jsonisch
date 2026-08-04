@@ -1,8 +1,16 @@
+export { decodeCompanions } from "./codec/decode-companions";
 export { decodeRecord } from "./codec/decode-record";
 export { buildDerivation } from "./derivation/build-derivation";
 export { mergeCollectionRows } from "./derivation/merge-collection-rows";
+export { resolveScopeValue } from "./derivation/resolve-scope-value";
 export { encodeDirty } from "./codec/encode-dirty";
 export type { EncodedDirty, EncodeDirtyOptions } from "./codec/encode-dirty";
+export { buildMeta } from "./meta/build-meta";
+export {
+  encodeCompanion,
+  hasDirtyMeta,
+  metaSuffix,
+} from "./meta/encode-companion";
 export { inferControl } from "./control";
 export type { ControlKind } from "./control";
 export { isEmptyish, isPresenceEqual, isSemanticEqual } from "./dirty";

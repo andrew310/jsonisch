@@ -1,6 +1,7 @@
 import { useLayoutEffect, useMemo } from "react";
 import { getFieldBool } from "../core/field/get-field-bool";
 import { createFormStore } from "../core/form/create-form-store";
+import { hasDirtyMeta } from "../core/meta/encode-companion";
 import { validateFormInput } from "../core/form/validate-form-input";
 import type { FormConfig } from "../core/types";
 import type { FormStore } from "./types";
@@ -47,7 +48,9 @@ export function useForm(config: FormConfig): FormStore {
         return getFieldBool(internal, "isEdited");
       },
       get isDirty() {
-        return getFieldBool(internal, "isDirty");
+        // A dirty meta channel (mode flip, basis change) counts: it
+        // produces a payload, so Save must enable
+        return getFieldBool(internal, "isDirty") || hasDirtyMeta(internal);
       },
       get isValid() {
         // Calc errors are the admin's problem (#ERROR display), not the form

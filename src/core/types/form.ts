@@ -75,6 +75,13 @@ export interface FormConfig {
    */
   readonly offFormValues?: Record<string, unknown>;
   /**
+   * The decoded companion meta state (`<key>Source`/`<key>Hybrid` wire
+   * blobs, keyed by companion key) — produce it with `decodeCompanions` at
+   * the same boundary as `decodeRecord`. Seeds each field's meta channel;
+   * an estimate field's `<key>Source` decides its initial mode.
+   */
+  readonly companions?: Record<string, unknown> | undefined;
+  /**
    * The empty input a required field without an initial input starts at,
    * keyed by JSON-Schema type. Merged over the default (`{ string: "" }` —
    * required strings start as `""`, every other type as `undefined`).

@@ -4,6 +4,14 @@ export type {
   DerivationMode,
   DerivedState,
 } from "./derivation";
+export type {
+  EntryMode,
+  HybridCompanion,
+  InternalHybridMeta,
+  InternalMetaStore,
+  InternalSourceMeta,
+  SourceCompanion,
+} from "./meta";
 export type { Path, PathSegment } from "./path";
 export type { JsonSchema } from "./schema";
 export type {

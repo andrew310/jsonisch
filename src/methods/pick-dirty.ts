@@ -1,4 +1,9 @@
 import { getFieldBool } from "../core/field/get-field-bool";
+import {
+  encodeCompanion,
+  hasDirtyMeta,
+  metaSuffix,
+} from "../core/meta/encode-companion";
 import type { InternalFieldStore } from "../core/types";
 import { type FormRef, internalOf } from "./form-ref";
 
@@ -19,7 +24,7 @@ export function pickDirty(
   from: Record<string, unknown>,
 ): Record<string, unknown> | undefined {
   const internal = internalOf(form);
-  if (!getFieldBool(internal, "isDirty")) {
+  if (!getFieldBool(internal, "isDirty") && !hasDirtyMeta(internal)) {
     return undefined;
   }
 
@@ -62,6 +67,11 @@ function pickFieldValue(
           child,
           (value as Record<string, unknown>)[key],
         );
+      }
+      // A dirty meta channel serializes from the store, not the supplied
+      // value — companions are meta state and never appear in it
+      if (child.kind === "value" && child.meta?.isDirty.value) {
+        result[`${key}${metaSuffix(child.meta)}`] = encodeCompanion(child);
       }
     }
     return result;

@@ -34,13 +34,29 @@ export interface EncodeDirtyOptions {
 const COMPANION_SUFFIXES = ["Source", "Hybrid"] as const;
 
 /**
- * Control kinds whose VALUES are derived and server-recomputed — never
- * written by the client save path. Client payloads may carry stale echoes
- * of the last-rendered result; they are skipped silently (mirrors the
- * `FORMULA_FIELD_TYPES` skip in `partitionAssetRow`). Companions
- * (`<key>Source` mode state) still persist.
+ * Returns whether a derived-control value must be skipped: a `formula`
+ * value is ALWAYS server-recomputed (a client payload only carries a stale
+ * echo of the last-rendered result — mirrors the `FORMULA_FIELD_TYPES`
+ * skip in `partitionAssetRow`); an `estimate` value persists exactly when
+ * its `<key>Source` companion in the same payload pins `mode: "manual"` —
+ * the server recompute preserves a manual-pinned value, so the client is
+ * its author (LOS-461). Any other mode (formula-accepted, or a payload
+ * without the companion) leaves the recompute pass as the only author.
  */
-const DERIVED_CONTROLS = new Set(["formula", "estimate"]);
+function isSkippedDerivedValue(
+  control: string,
+  dirty: Record<string, unknown>,
+  key: string,
+): boolean {
+  if (control === "formula") return true;
+  if (control !== "estimate") return false;
+  const companion = dirty[`${key}Source`];
+  const mode =
+    companion && typeof companion === "object"
+      ? (companion as Record<string, unknown>).mode
+      : undefined;
+  return mode !== "manual";
+}
 
 /**
  * Encodes a dirty-values object (the `pickDirty`/`getDirtyInput` result)
@@ -53,10 +69,9 @@ const DERIVED_CONTROLS = new Set(["formula", "estimate"]);
  * including prototype-pollution keys — are dropped: the schema is the
  * allow-list at the write boundary too.
  *
- * v1a note: nothing in the field-store tree produces companion keys yet —
- * they arrive when the meta channel (mode/hybrid/ledger state) lands in a
- * later slice and serializes into the dirty payload. Until then the branch
- * pins the wire shape.
+ * The companion keys are produced by the meta channel: a dirty
+ * `<key>Source`/`<key>Hybrid` serializes into the dirty-values object
+ * (`getDirtyInput`/`pickDirty`) next to its field's value.
  *
  * This function is isomorphic (no DOM): the server imports the same
  * partition for save routing and whitelist enforcement.
@@ -90,9 +105,9 @@ export function encodeDirty(
 
     const property = declared(key);
     if (property) {
-      // Derived values are outputs — the recompute pass is their only
-      // author; a client echo must never persist
-      if (DERIVED_CONTROLS.has(inferControl(property))) continue;
+      // Derived values are outputs — the recompute pass is their author,
+      // except a manual-pinned estimate, which the client owns
+      if (isSkippedDerivedValue(inferControl(property), dirty, key)) continue;
 
       if (property["x-column"] === true) {
         if (options.knownColumns && !options.knownColumns.has(key)) {

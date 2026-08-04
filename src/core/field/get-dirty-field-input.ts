@@ -1,3 +1,4 @@
+import { encodeCompanion, hasDirtyMeta, metaSuffix } from "../meta/encode-companion";
 import type { InternalFieldStore } from "../types";
 import { getFieldBool } from "./get-field-bool";
 import { getFieldInput } from "./get-field-input";
@@ -8,6 +9,11 @@ import { getFieldInput } from "./get-field-input";
  * without a dirty descendant are omitted. Returns `undefined` if no
  * descendant is dirty.
  *
+ * Dirty meta channels serialize alongside their field: an object with a
+ * child whose companion state changed emits `<key>Source`/`<key>Hybrid`
+ * next to (or without) the child's own value — a mode flip with an
+ * unchanged value still produces a payload.
+ *
  * @param internalFieldStore The field store to get dirty input from.
  *
  * @returns The dirty input, or `undefined` if no descendant is dirty.
@@ -15,7 +21,12 @@ import { getFieldInput } from "./get-field-input";
 export function getDirtyFieldInput(
   internalFieldStore: InternalFieldStore,
 ): unknown {
-  if (!getFieldBool(internalFieldStore, "isDirty")) {
+  if (
+    !getFieldBool(internalFieldStore, "isDirty") &&
+    !(
+      internalFieldStore.kind === "object" && hasDirtyMeta(internalFieldStore)
+    )
+  ) {
     return undefined;
   }
 
@@ -32,6 +43,9 @@ export function getDirtyFieldInput(
         const child = internalFieldStore.children[key];
         if (getFieldBool(child, "isDirty")) {
           value[key] = getDirtyFieldInput(child);
+        }
+        if (child.kind === "value" && child.meta?.isDirty.value) {
+          value[`${key}${metaSuffix(child.meta)}`] = encodeCompanion(child);
         }
       }
       return value;

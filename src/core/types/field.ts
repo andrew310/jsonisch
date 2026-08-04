@@ -1,6 +1,7 @@
 import type { ReadonlySignal, Signal } from "../signal";
 import type { ControlKind } from "../control";
 import type { DerivationMode, DerivedState } from "./derivation";
+import type { InternalMetaStore } from "./meta";
 import type { Path } from "./path";
 import type { JsonSchema } from "./schema";
 
@@ -102,9 +103,6 @@ export interface InternalBaseStore {
    * empty-aware compare: `null` ≡ `undefined` ≡ `""`).
    */
   isDirty: Signal<boolean>;
-  // TODO(LOS-539): meta channel — companion state (mode manual|formula,
-  // hybrid denominator, ledger config) dirty-tracked and serialized by core,
-  // never rendered as a field. Shape not yet settled.
 }
 
 /**
@@ -201,20 +199,39 @@ export interface InternalValueStore extends InternalBaseStore {
   /**
    * The derived output of a formula field: a computed signal over the
    * deps' input signals + `offFormValues`, resolved through the single
-   * scope path. Present only on root-level fields with a parseable
-   * derivation setup (`x-formula` + injected calc engine). NEVER written
-   * back into `input` — derived values are outputs, excluded from dirty
-   * and payload by construction.
+   * scope path — mode-aware: an estimate pin holds the field's own input.
+   * This is what dependents chain through and what the field displays.
+   * Present only on root-level fields with a parseable derivation setup
+   * (`x-formula` + injected calc engine). NEVER written back into `input`
+   * — derived values are outputs, excluded from dirty and payload by
+   * construction.
    */
   derived?: ReadonlySignal<DerivedState> | undefined;
   /**
-   * The estimate/formula mode of an estimate-control field (minimal pin;
-   * the full meta channel is a later slice). `estimate` holds the manual
-   * value in `input`; `formula` computes. Initial mode is provisional
-   * until the `<key>Source` companion decode lands: `estimate` when the
-   * field starts with a non-emptyish value, `formula` otherwise.
+   * The always-computed formula result, IGNORING the estimate pin — the
+   * candidate value the estimate wrapper's nudge compares against
+   * ("Calculated value available — replace estimate?") and the seed for a
+   * formula→estimate flip. Same signal object as `derived` on a plain
+   * formula field.
+   */
+  formulaValue?: ReadonlySignal<DerivedState> | undefined;
+  /**
+   * The estimate/formula mode of an estimate-control field. `estimate`
+   * holds the manual value in `input`; `formula` computes. Decoded from
+   * the `<key>Source` companion at store init (`manual` → `estimate`,
+   * `calculated` → `formula`); with no companion the value-presence
+   * heuristic decides — matching the server recompute's own defaulting.
+   * Write via `setMode` (the flip API), not directly: a raw write skips
+   * value seeding and the flip timestamp.
    */
   mode?: Signal<DerivationMode> | undefined;
+  /**
+   * The companion meta state of the field (`<key>Source` mode state on
+   * estimate fields, `<key>Hybrid` entry state on amount-or-percent
+   * fields): dirty-tracked and serialized by core, never rendered as a
+   * field. Root-level fields only (the same boundary as derivation).
+   */
+  meta?: InternalMetaStore | undefined;
   /**
    * Whether the formula references a collection (`SUM(assets[…])`) —
    * classified statically from the expression at store init. Marks the
