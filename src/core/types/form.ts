@@ -1,4 +1,5 @@
 import type { Signal } from "../signal";
+import type { CalcEngine } from "./derivation";
 import type { InternalObjectStore } from "./field";
 import type { JsonSchema } from "./schema";
 
@@ -86,6 +87,13 @@ export interface FormConfig {
    */
   readonly validator?: FormValidator | undefined;
   /**
+   * The injected calc engine (`@rwa/formulas` in the app). Enables the
+   * derivation graph: every root-level `x-formula` is parsed once at store
+   * init and its field becomes a computed signal. Without an engine no
+   * derivation is built (formula fields still walk as value leaves).
+   */
+  readonly calcEngine?: CalcEngine | undefined;
+  /**
    * The validation mode of the form. Defaults to `"submit"`.
    */
   readonly validate?: ValidationMode | undefined;
@@ -93,15 +101,6 @@ export interface FormConfig {
    * The revalidation mode of the form. Defaults to `"input"`.
    */
   readonly revalidate?: Exclude<ValidationMode, "initial"> | undefined;
-}
-
-/**
- * PLACEHOLDER — injected environment for a form store
- * (`createFormStore(config, deps)`). Shapes are not settled.
- */
-export interface FormDeps {
-  // TODO(LOS-539): injected calc engine ({ evaluate, extractDependencies })
-  // from @rwa/formulas for the derivation graph (v1c).
 }
 
 /**
@@ -151,6 +150,5 @@ export interface InternalFormStore extends InternalObjectStore {
    * The validating state of the form.
    */
   isValidating: Signal<boolean>;
-  // TODO(LOS-539): parsed formula dep graph (topo-sorted computed signals),
-  // injected validator handle, read-only render mode.
+  // TODO(LOS-539): read-only render mode.
 }

@@ -66,7 +66,7 @@ export function handleSubmit(
 
       // A handler throw lands as a form-level error
     } catch (error) {
-      internalFormStore.errors.value = [
+      internalFormStore.validationErrors.value = [
         error &&
         typeof error === "object" &&
         "message" in error &&

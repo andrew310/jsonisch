@@ -26,7 +26,8 @@ export function copyItemState(
       // Copy the elements reference so a registered DOM element follows its
       // row (the react adapter re-registers against the destination store)
       toInternalFieldStore.elements = fromInternalFieldStore.elements;
-      toInternalFieldStore.errors.value = fromInternalFieldStore.errors.value;
+      toInternalFieldStore.validationErrors.value =
+        fromInternalFieldStore.validationErrors.value;
       toInternalFieldStore.startInput.value =
         fromInternalFieldStore.startInput.value;
       toInternalFieldStore.input.value = fromInternalFieldStore.input.value;

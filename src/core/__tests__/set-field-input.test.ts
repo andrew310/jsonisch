@@ -338,7 +338,7 @@ describe("setFieldInput", () => {
       const items = getArrayStore(store, ["items"]);
       // Give the third item a stale error, then shrink the array so its
       // child store becomes a stale, invisible leftover
-      items.children[2].errors.value = ["Stale error"];
+      items.children[2].validationErrors.value = ["Stale error"];
       setFieldInput(store, ["items"], ["a"]);
 
       // Grow back so the stale child store is reused for a changed value

@@ -44,7 +44,8 @@ export function useFieldArray(form: FormStore, path: Path): FieldArrayStore {
         return getFieldBool(internalFieldStore, "isDirty");
       },
       get isValid() {
-        return !getFieldBool(internalFieldStore, "errors");
+        // Calc errors don't invalidate the field — the user can't fix them
+        return !getFieldBool(internalFieldStore, "validationErrors");
       },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps

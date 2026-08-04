@@ -14,7 +14,7 @@
  * beforeEach(resetIdCounter);
  * ```
  */
-import type { Signal } from "../signal";
+import type { ReadonlySignal, Signal } from "../signal";
 
 let idCounter = 0;
 
@@ -22,6 +22,16 @@ function createSignal<T>(): Signal<T | undefined>;
 function createSignal<T>(value: T): Signal<T>;
 function createSignal(value?: unknown): Signal<unknown> {
   return { value };
+}
+
+// No caching: the mock recomputes on every read, so state assertions stay
+// independent of invalidation mechanics (which signal.test.ts covers).
+function computed<T>(compute: () => T): ReadonlySignal<T> {
+  return {
+    get value(): T {
+      return compute();
+    },
+  };
 }
 
 function batch<T>(fn: () => T): T {
@@ -49,6 +59,7 @@ export function resetIdCounter(): void {
  */
 export const frameworkMocks = {
   createSignal,
+  computed,
   batch,
   untrack,
   createId,

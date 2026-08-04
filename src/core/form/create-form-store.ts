@@ -1,3 +1,4 @@
+import { buildDerivation } from "../derivation/build-derivation";
 import { initializeFieldStore } from "../field/initialize-field-store";
 import { createSignal } from "../framework";
 import type { FormConfig, InternalFormStore } from "../types";
@@ -52,6 +53,10 @@ export function createFormStore(config: FormConfig): InternalFormStore {
     config.initialInput,
     [],
   );
+
+  // Build the derivation graph over the walked tree (root-level `x-formula`
+  // fields become computed signals; no-op without an injected calc engine)
+  buildDerivation(store as InternalFormStore, config.calcEngine);
 
   return store as InternalFormStore;
 }

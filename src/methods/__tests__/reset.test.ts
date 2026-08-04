@@ -37,7 +37,7 @@ describe("reset", () => {
     setInput(store, ["name"], "Jane");
     store.isSubmitted.value = true;
     const name = getValueStore(store, ["name"]);
-    name.errors.value = ["Bad"];
+    name.validationErrors.value = ["Bad"];
 
     reset(store);
 
@@ -91,7 +91,7 @@ describe("reset", () => {
     });
     setInput(store, ["name"], "Jane");
     const name = getValueStore(store, ["name"]);
-    name.errors.value = ["Bad"];
+    name.validationErrors.value = ["Bad"];
 
     reset(store, { keepTouched: true, keepEdited: true, keepErrors: true });
 

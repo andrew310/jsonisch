@@ -12,7 +12,7 @@ import { walkFieldStore } from "./walk-field-store";
  */
 export function getFieldBool(
   internalFieldStore: InternalFieldStore,
-  type: "errors" | "isTouched" | "isEdited" | "isDirty",
+  type: "errors" | "validationErrors" | "isTouched" | "isEdited" | "isDirty",
 ): boolean {
   return walkFieldStore(internalFieldStore, (fieldStore) =>
     Boolean(fieldStore[type].value),

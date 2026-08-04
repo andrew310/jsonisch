@@ -71,7 +71,8 @@ export function useField(form: FormStore, path: Path): FieldStore {
         return getFieldBool(internalFieldStore, "isDirty");
       },
       get isValid() {
-        return !getFieldBool(internalFieldStore, "errors");
+        // Calc errors don't invalidate the field — the user can't fix them
+        return !getFieldBool(internalFieldStore, "validationErrors");
       },
       onChange(value: unknown) {
         setFieldInput(internalFormStore, path, value);
@@ -80,7 +81,8 @@ export function useField(form: FormStore, path: Path): FieldStore {
       },
       props: {
         name: internalFieldStore.name,
-        autoFocus: !!internalFieldStore.errors.value,
+        // Focus-on-error is for errors the user can fix — never a calc error
+        autoFocus: !!internalFieldStore.validationErrors.value,
         ref(element) {
           // An array reorder transfers registered elements between field
           // stores, so the element may already be present when React

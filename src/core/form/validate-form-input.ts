@@ -140,7 +140,7 @@ export function validateFormInput(
       untrack(() => {
         walkFieldStore(internalFormStore, (internalFieldStore) => {
           const errors = fieldErrors?.get(internalFieldStore) ?? null;
-          internalFieldStore.errors.value = errors;
+          internalFieldStore.validationErrors.value = errors;
 
           // Focus the first erroring field whose element can actually
           // receive focus, so the focus is not consumed by a field without

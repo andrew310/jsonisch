@@ -10,6 +10,7 @@ import {
 } from "../schema-utils";
 import type {
   FieldElement,
+  FieldErrors,
   InternalArrayStore,
   InternalFieldStore,
   InternalFormStore,
@@ -59,7 +60,12 @@ export function initializeFieldStore(
   const initialElements: FieldElement[] = [];
   internalFieldStore.initialElements = initialElements;
   internalFieldStore.elements = initialElements;
-  internalFieldStore.errors = createSignal(null);
+  // `errors` starts as the SAME object as `validationErrors` (one channel);
+  // the derivation pass swaps a formula field's `errors` for a computed
+  // composing validation and calc errors (see buildDerivation)
+  const validationErrors = createSignal<FieldErrors>(null);
+  internalFieldStore.validationErrors = validationErrors;
+  internalFieldStore.errors = validationErrors;
   internalFieldStore.isTouched = createSignal(false);
   internalFieldStore.isEdited = createSignal(false);
   internalFieldStore.isDirty = createSignal(false);

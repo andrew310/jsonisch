@@ -21,4 +21,5 @@ export { pickDirty } from "./pick-dirty";
 export { reset } from "./reset";
 export type { ResetConfig } from "./reset";
 export { setInput } from "./set-input";
+export { setOffFormValues } from "./set-off-form-values";
 export { validate } from "./validate";

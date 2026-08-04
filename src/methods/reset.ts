@@ -78,7 +78,7 @@ export function reset(form: FormRef, config?: ResetConfig): void {
         fieldStore.elements = fieldStore.initialElements;
 
         if (!config?.keepErrors) {
-          fieldStore.errors.value = null;
+          fieldStore.validationErrors.value = null;
         }
         if (!config?.keepTouched) {
           fieldStore.isTouched.value = false;
