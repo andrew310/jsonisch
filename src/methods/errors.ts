@@ -18,7 +18,8 @@ export function setErrors(
   path?: Path,
 ): void {
   const internal = internalOf(form);
-  (path ? getFieldStore(internal, path) : internal).errors.value = errors;
+  (path ? getFieldStore(internal, path) : internal).validationErrors.value =
+    errors;
 }
 
 /**

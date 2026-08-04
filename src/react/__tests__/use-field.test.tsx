@@ -394,7 +394,7 @@ describe("useFieldArray", () => {
 
     act(() => {
       const store = formRef.internal.children.rows;
-      store.errors.value = ["Need at least one row"];
+      store.validationErrors.value = ["Need at least one row"];
     });
 
     expect(getByTestId("errors").textContent).toBe("Need at least one row");

@@ -1,3 +1,9 @@
+export type {
+  CalcEngine,
+  CalcParseResult,
+  DerivationMode,
+  DerivedState,
+} from "./derivation";
 export type { Path, PathSegment } from "./path";
 export type { JsonSchema } from "./schema";
 export type {
@@ -13,7 +19,6 @@ export type {
 } from "./field";
 export type {
   FormConfig,
-  FormDeps,
   FormValidator,
   InternalFormStore,
   ValidationIssue,

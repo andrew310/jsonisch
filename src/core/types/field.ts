@@ -1,5 +1,6 @@
+import type { ReadonlySignal, Signal } from "../signal";
 import type { ControlKind } from "../control";
-import type { Signal } from "../signal";
+import type { DerivationMode, DerivedState } from "./derivation";
 import type { Path } from "./path";
 import type { JsonSchema } from "./schema";
 
@@ -74,9 +75,19 @@ export interface InternalBaseStore {
    */
   initialElements: FieldElement[];
   /**
-   * The errors of the field (validation + calc, one channel).
+   * The errors of the field — the ONE read channel (validation + calc).
+   * For most fields this is the same object as `validationErrors`; a
+   * formula field swaps in a computed composing `validationErrors` with
+   * its derived signal's calc error, so validation passes can never
+   * clobber a calc error (and vice versa).
    */
-  errors: Signal<FieldErrors>;
+  errors: ReadonlySignal<FieldErrors>;
+  /**
+   * The validation-sourced errors of the field. The ONLY writable error
+   * store — every writer (validate routing, `setErrors`, reset, item-state
+   * transfer) goes through this; calc errors are derived, never written.
+   */
+  validationErrors: Signal<FieldErrors>;
   /**
    * Whether the field has been focused.
    */
@@ -187,6 +198,29 @@ export interface InternalValueStore extends InternalBaseStore {
    * The current input.
    */
   input: Signal<unknown>;
+  /**
+   * The derived output of a formula field: a computed signal over the
+   * deps' input signals + `offFormValues`, resolved through the single
+   * scope path. Present only on root-level fields with a parseable
+   * derivation setup (`x-formula` + injected calc engine). NEVER written
+   * back into `input` — derived values are outputs, excluded from dirty
+   * and payload by construction.
+   */
+  derived?: ReadonlySignal<DerivedState> | undefined;
+  /**
+   * The estimate/formula mode of an estimate-control field (minimal pin;
+   * the full meta channel is a later slice). `estimate` holds the manual
+   * value in `input`; `formula` computes. Initial mode is provisional
+   * until the `<key>Source` companion decode lands: `estimate` when the
+   * field starts with a non-emptyish value, `formula` otherwise.
+   */
+  mode?: Signal<DerivationMode> | undefined;
+  /**
+   * Whether the formula references a collection (`SUM(assets[…])`) —
+   * classified statically from the expression at store init. Marks the
+   * stricter-persistence set; carries no behavior in this slice.
+   */
+  isRollup?: boolean | undefined;
 }
 
 /**

@@ -37,7 +37,7 @@ function stamp(
 ): void {
   store.input.value = value;
   store.startInput.value = `${value}-start`;
-  store.errors.value = [`${value}-error`];
+  store.validationErrors.value = [`${value}-error`];
   store.isTouched.value = true;
   store.isEdited.value = true;
   store.isDirty.value = true;

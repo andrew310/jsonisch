@@ -41,7 +41,7 @@ export function resetItemState(
       internalFieldStore.initialElements = elements;
     }
     internalFieldStore.elements = elements;
-    internalFieldStore.errors.value = null;
+    internalFieldStore.validationErrors.value = null;
     internalFieldStore.isTouched.value = false;
     internalFieldStore.isEdited.value = false;
     internalFieldStore.isDirty.value = false;

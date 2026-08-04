@@ -50,7 +50,9 @@ export function useForm(config: FormConfig): FormStore {
         return getFieldBool(internal, "isDirty");
       },
       get isValid() {
-        return !getFieldBool(internal, "errors");
+        // Calc errors are the admin's problem (#ERROR display), not the form
+        // user's — only user-fixable validation gates validity
+        return !getFieldBool(internal, "validationErrors");
       },
       get errors() {
         return internal.errors.value;

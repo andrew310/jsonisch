@@ -1,4 +1,6 @@
 export { decodeRecord } from "./codec/decode-record";
+export { buildDerivation } from "./derivation/build-derivation";
+export { mergeCollectionRows } from "./derivation/merge-collection-rows";
 export { encodeDirty } from "./codec/encode-dirty";
 export type { EncodedDirty, EncodeDirtyOptions } from "./codec/encode-dirty";
 export { inferControl } from "./control";

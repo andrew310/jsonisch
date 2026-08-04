@@ -6,7 +6,7 @@
  * and a deterministic ID counter (the formisch mocked-signals pattern) and
  * assert store state independently of the signal implementation.
  */
-export { batch, createSignal, untrack } from "./signal";
+export { batch, computed, createSignal, untrack } from "./signal";
 
 /**
  * Counter backing `createId`.

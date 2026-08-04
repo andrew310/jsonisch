@@ -48,7 +48,7 @@ describe("insert", () => {
   test("should insert at an index and shift full state up, errors included", () => {
     const store = rowsStore(["a", "b"]);
     const secondLabel = getValueStore(store, ["rows", 1, "label"]);
-    secondLabel.errors.value = ["b is bad"];
+    secondLabel.validationErrors.value = ["b is bad"];
     secondLabel.isDirty.value = true;
 
     insert(store, ["rows"], { at: 1, initialInput: { label: "x" } });
@@ -116,7 +116,7 @@ describe("remove", () => {
   test("should remove the item at the index and shift full state down", () => {
     const store = rowsStore(["a", "b", "c"]);
     const thirdLabel = getValueStore(store, ["rows", 2, "label"]);
-    thirdLabel.errors.value = ["c is bad"];
+    thirdLabel.validationErrors.value = ["c is bad"];
 
     remove(store, ["rows"], 0);
 
@@ -129,7 +129,7 @@ describe("remove", () => {
 
   test("should drop an erroring row's error with the row", () => {
     const store = rowsStore(["a", "b"]);
-    getValueStore(store, ["rows", 1, "label"]).errors.value = ["b is bad"];
+    getValueStore(store, ["rows", 1, "label"]).validationErrors.value = ["b is bad"];
 
     remove(store, ["rows"], 1);
 
@@ -161,7 +161,7 @@ describe("remove", () => {
 describe("move", () => {
   test("should move an item forward with its full state", () => {
     const store = rowsStore(["a", "b", "c"]);
-    getValueStore(store, ["rows", 0, "label"]).errors.value = ["a is bad"];
+    getValueStore(store, ["rows", 0, "label"]).validationErrors.value = ["a is bad"];
 
     move(store, ["rows"], 0, 2);
 
@@ -174,7 +174,7 @@ describe("move", () => {
 
   test("should move an item backward with its full state", () => {
     const store = rowsStore(["a", "b", "c"]);
-    getValueStore(store, ["rows", 2, "label"]).errors.value = ["c is bad"];
+    getValueStore(store, ["rows", 2, "label"]).validationErrors.value = ["c is bad"];
 
     move(store, ["rows"], 2, 0);
 
@@ -212,7 +212,7 @@ describe("move", () => {
 describe("swap", () => {
   test("should swap two items with their full state", () => {
     const store = rowsStore(["a", "b", "c"]);
-    getValueStore(store, ["rows", 0, "label"]).errors.value = ["a is bad"];
+    getValueStore(store, ["rows", 0, "label"]).validationErrors.value = ["a is bad"];
     getValueStore(store, ["rows", 0, "label"]).isTouched.value = true;
 
     swap(store, ["rows"], 0, 2);

@@ -28,10 +28,10 @@ export function swapItemState(
       firstInternalFieldStore.elements = secondInternalFieldStore.elements;
       secondInternalFieldStore.elements = tempElements;
 
-      const tempErrors = firstInternalFieldStore.errors.value;
-      firstInternalFieldStore.errors.value =
-        secondInternalFieldStore.errors.value;
-      secondInternalFieldStore.errors.value = tempErrors;
+      const tempErrors = firstInternalFieldStore.validationErrors.value;
+      firstInternalFieldStore.validationErrors.value =
+        secondInternalFieldStore.validationErrors.value;
+      secondInternalFieldStore.validationErrors.value = tempErrors;
 
       const tempStartInput = firstInternalFieldStore.startInput.value;
       firstInternalFieldStore.startInput.value =
