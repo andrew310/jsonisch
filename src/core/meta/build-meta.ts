@@ -6,6 +6,8 @@ import type {
   EntryMode,
   HybridCompanion,
   InternalFormStore,
+  InternalHybridMeta,
+  InternalSourceMeta,
   InternalValueStore,
   SourceCompanion,
 } from "../types";
@@ -60,16 +62,52 @@ export function buildMeta(
   }
 }
 
+/**
+ * Resolves the mode a `<key>Source` companion decodes to: the companion
+ * wins; without one the value-presence heuristic on the given baseline
+ * value decides (matching the server recompute's own defaulting).
+ */
+function resolveSourceMode(
+  companion: SourceCompanion,
+  baselineValue: unknown,
+): DerivationMode {
+  return companion.mode === "calculated"
+    ? "formula"
+    : companion.mode === "manual" || Object.keys(companion).length > 0
+      ? "estimate"
+      : isEmptyish(baselineValue)
+        ? "formula"
+        : "estimate";
+}
+
+/**
+ * Resolves the entry state a `<key>Hybrid` companion decodes to, falling
+ * back to the schema's declared default denominator.
+ */
+function resolveHybridEntry(
+  companion: HybridCompanion,
+  schema: InternalValueStore["schema"],
+): { entryMode: EntryMode; percentBasis: string | undefined } {
+  const schemaDefault = schema["x-hybrid-default-denominator"];
+  return {
+    entryMode: companion.mode === "bps" ? "percent" : "amount",
+    percentBasis:
+      typeof companion.denominator === "string"
+        ? companion.denominator
+        : typeof schemaDefault === "string" && schemaDefault !== ""
+          ? schemaDefault
+          : undefined,
+  };
+}
+
 function buildSourceMeta(
   store: InternalValueStore,
   companion: SourceCompanion,
 ): void {
-  const initialMode: DerivationMode =
-    companion.mode === "calculated"
-      ? "formula"
-      : companion.mode === "manual" || Object.keys(companion).length > 0
-        ? "estimate"
-        : untrack(() => (isEmptyish(store.input.value) ? "formula" : "estimate"));
+  const initialMode = resolveSourceMode(
+    companion,
+    untrack(() => store.input.value),
+  );
 
   const mode = createSignal<DerivationMode>(initialMode);
   const startMode = createSignal<DerivationMode>(initialMode);
@@ -97,15 +135,8 @@ function buildHybridMeta(
   store: InternalValueStore,
   companion: HybridCompanion,
 ): void {
-  const schemaDefault = store.schema["x-hybrid-default-denominator"];
-  const initialEntryMode: EntryMode =
-    companion.mode === "bps" ? "percent" : "amount";
-  const initialBasis =
-    typeof companion.denominator === "string"
-      ? companion.denominator
-      : typeof schemaDefault === "string" && schemaDefault !== ""
-        ? schemaDefault
-        : undefined;
+  const { entryMode: initialEntryMode, percentBasis: initialBasis } =
+    resolveHybridEntry(companion, store.schema);
 
   const entryMode = createSignal<EntryMode>(initialEntryMode);
   const startEntryMode = createSignal<EntryMode>(initialEntryMode);
@@ -124,4 +155,70 @@ function buildHybridMeta(
         percentBasis.value !== startPercentBasis.value,
     ),
   };
+}
+
+/**
+ * Rebases the meta channel onto freshly decoded companions — the meta half
+ * of `applyBaseline`, following the same clean-vs-dirty rule as values: the
+ * decode-time baselines (`startCompanion`, `startMode`, `startEntryMode`,
+ * `startPercentBasis`) always move to the fresh companion; the live signals
+ * move with them only when they were clean, so a user's in-session mode
+ * flip or entry-state change survives (and becomes clean when it matches
+ * the fresh companion — the dirty computeds re-diff automatically).
+ *
+ * Runs AFTER the value rebase (the companion-less mode heuristic reads the
+ * rebased baseline value). Callers must wrap in `batch` + `untrack`.
+ */
+export function rebaseMeta(
+  internalFormStore: InternalFormStore,
+  companions: Record<string, unknown> | undefined,
+): void {
+  for (const key of Object.keys(internalFormStore.children)) {
+    const child = internalFormStore.children[key];
+    if (child.kind !== "value" || !child.meta) continue;
+
+    if (child.meta.family === "source") {
+      rebaseSourceMeta(child, child.meta, readCompanion(companions, `${key}Source`));
+    } else {
+      rebaseHybridMeta(child, child.meta, readCompanion(companions, `${key}Hybrid`));
+    }
+  }
+}
+
+function rebaseSourceMeta(
+  store: InternalValueStore,
+  meta: InternalSourceMeta,
+  companion: SourceCompanion,
+): void {
+  const mode = store.mode!;
+  // The heuristic reads the REBASED baseline (`startInput`), never the
+  // possibly-dirty live input
+  const newMode = resolveSourceMode(companion, store.startInput.value);
+  const modeClean = mode.value === meta.startMode.value;
+
+  meta.startCompanion = companion;
+  meta.startMode.value = newMode;
+  if (modeClean) {
+    mode.value = newMode;
+    meta.manualValue.value = companion.manualValue ?? null;
+    meta.lastFlippedAt.value = undefined;
+  }
+}
+
+function rebaseHybridMeta(
+  store: InternalValueStore,
+  meta: InternalHybridMeta,
+  companion: HybridCompanion,
+): void {
+  const { entryMode, percentBasis } = resolveHybridEntry(companion, store.schema);
+
+  if (meta.entryMode.value === meta.startEntryMode.value) {
+    meta.entryMode.value = entryMode;
+  }
+  meta.startEntryMode.value = entryMode;
+
+  if (meta.percentBasis.value === meta.startPercentBasis.value) {
+    meta.percentBasis.value = percentBasis;
+  }
+  meta.startPercentBasis.value = percentBasis;
 }
