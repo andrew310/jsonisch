@@ -1,6 +1,7 @@
 import { describe, expect, test, vi } from "vitest";
 import type { Mock } from "vitest";
 
+import { applyBaseline } from "../../methods/apply-baseline";
 import { getDirtyPaths } from "../../methods/get-dirty-paths";
 import { setErrors } from "../../methods/errors";
 import { setInput } from "../../methods/set-input";
@@ -362,6 +363,74 @@ describe("derivation", () => {
       expect(getValueStore(store, ["outB"]).derived!.value.value).toBe(20);
       expect(exprs.echoA.fn).toHaveBeenCalledTimes(2);
       expect(exprs.echoB.fn).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe("applyBaseline reconcile", () => {
+    test("should recompute once when values and offFormValues rebase in one batch", () => {
+      const exprs = {
+        sum: stub(["a", "external"], (s) => num(s.a) + num(s.external)),
+      };
+      const store = createFormStore({
+        schema: objectSchema({
+          a: { type: "number" },
+          total: formulaField("sum"),
+        }),
+        initialInput: { a: 1 },
+        offFormValues: { external: 10 },
+        calcEngine: makeEngine(exprs),
+      });
+      const total = getValueStore(store, ["total"]);
+      expect(total.derived!.value.value).toBe(11);
+      expect(exprs.sum.fn).toHaveBeenCalledTimes(1);
+
+      applyBaseline(
+        store,
+        { data: { a: 2 } },
+        { offFormValues: { external: 20 } },
+      );
+
+      // Both the dep rebase and the off-form refresh land in ONE batch — a
+      // consistent snapshot, one evaluation on the next read
+      expect(total.derived!.value.value).toBe(22);
+      expect(exprs.sum.fn).toHaveBeenCalledTimes(2);
+    });
+
+    test("should recompute a rollup once against rebased rows and canon", () => {
+      const rowSchema: JsonSchema = {
+        type: "object",
+        properties: { id: { type: "string" }, v: { type: "number" } },
+        required: ["id"],
+      };
+      const exprs = {
+        rollup: stub(
+          ["items"],
+          (s) =>
+            (s.items as Array<Record<string, unknown>>).reduce(
+              (acc, row) => acc + num(row.v),
+              0,
+            ),
+          [{ collection: "items", field: "v" }],
+        ),
+      };
+      const store = createFormStore({
+        schema: objectSchema({
+          items: { type: "array", items: rowSchema },
+          total: formulaField("rollup"),
+        }),
+        initialInput: { items: [{ id: "r1", v: 1 }, { id: "r2", v: 2 }] },
+        calcEngine: makeEngine(exprs),
+      });
+      const total = getValueStore(store, ["total"]);
+      expect(total.derived!.value.value).toBe(3);
+      expect(exprs.rollup.fn).toHaveBeenCalledTimes(1);
+
+      applyBaseline(store, {
+        data: { items: [{ id: "r1", v: 100 }, { id: "r2", v: 200 }] },
+      });
+
+      expect(total.derived!.value.value).toBe(300);
+      expect(exprs.rollup.fn).toHaveBeenCalledTimes(2);
     });
   });
 

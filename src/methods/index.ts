@@ -1,5 +1,6 @@
-// Tree-shakeable form operations. Later slices add: applyBaseline (v1c
-// reconcile) and derivation-aware variants.
+// Tree-shakeable form operations.
+export { applyBaseline } from "./apply-baseline";
+export type { ApplyBaselineConfig } from "./apply-baseline";
 export { insert, move, remove, swap } from "./array-ops";
 export type { InsertConfig } from "./array-ops";
 export {

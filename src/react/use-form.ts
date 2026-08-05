@@ -10,7 +10,8 @@ import { useSignals } from "./use-signals";
 /**
  * Creates a reactive form store from a form configuration. The store is
  * created once for the component's lifetime — config changes after mount
- * are ignored (reset with a new `initialInput` to rebase).
+ * are ignored (`applyBaseline` rebases on a fresh server record; `reset`
+ * with a new `initialInput` discards in-flight edits with it).
  *
  * @param config The form configuration.
  *

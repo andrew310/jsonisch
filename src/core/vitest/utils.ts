@@ -18,6 +18,7 @@ import type {
  */
 interface CreateTestStoreConfig {
   initialInput?: unknown;
+  companions?: Record<string, unknown>;
   offFormValues?: Record<string, unknown>;
   emptyInput?: Record<string, unknown>;
   validator?: FormValidator;
