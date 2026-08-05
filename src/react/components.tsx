@@ -1,9 +1,3 @@
-// "use no memo" — jsonisch reactivity is signal-based: `useSignals`
-// re-subscribes from the reads of EVERY render, so the React Compiler's
-// auto-memoization (which skips those reads when `field`/`form` refs are
-// stable) silently kills the subscriptions and freezes the UI
-// (LOS-567; same class as the PR #334 zustand freeze).
-"use no memo";
 import type {
   FormHTMLAttributes,
   ReactElement,

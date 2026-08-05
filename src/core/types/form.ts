@@ -1,4 +1,4 @@
-import type { Signal } from "../signal";
+import type { ReadonlySignal, Signal } from "../signal";
 import type { CalcEngine } from "./derivation";
 import type { InternalObjectStore } from "./field";
 import type { JsonSchema } from "./schema";
@@ -111,6 +111,35 @@ export interface FormConfig {
 }
 
 /**
+ * The `computed`-cached form-level aggregates. Each one wraps a whole-tree
+ * `getFieldBool` walk (plus the meta channel for `isDirty`) so the walk
+ * runs once per invalidation instead of once per read — under the react
+ * adapter's snapshot model `useForm` reads these on every notification,
+ * which without caching would mean four full-tree walks per keystroke.
+ */
+export interface FormAggregates {
+  /**
+   * Whether any field in the form has been touched.
+   */
+  readonly isTouched: ReadonlySignal<boolean>;
+  /**
+   * Whether any field in the form has been edited.
+   */
+  readonly isEdited: ReadonlySignal<boolean>;
+  /**
+   * Whether any field differs from its start input, OR any root-level
+   * field's meta channel is dirty (a mode flip with an unchanged value
+   * still produces a payload, so Save must enable).
+   */
+  readonly isDirty: ReadonlySignal<boolean>;
+  /**
+   * Whether no field in the form has validation errors. Calc errors are
+   * excluded — only user-fixable validation gates validity.
+   */
+  readonly isValid: ReadonlySignal<boolean>;
+}
+
+/**
  * The internal form store: the root object node plus form-level state.
  */
 export interface InternalFormStore extends InternalObjectStore {
@@ -157,5 +186,9 @@ export interface InternalFormStore extends InternalObjectStore {
    * The validating state of the form.
    */
   isValidating: Signal<boolean>;
+  /**
+   * The cached form-level aggregates (see `FormAggregates`).
+   */
+  aggregates: FormAggregates;
   // TODO(LOS-539): read-only render mode.
 }

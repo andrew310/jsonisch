@@ -1,12 +1,13 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   batch,
   computed,
   createSignal,
+  createTracker,
   getListener,
   type Listener,
-  setListener,
   untrack,
+  withListener,
 } from "../signal";
 
 function createListener(notify: () => void = () => {}): Listener {
@@ -15,18 +16,8 @@ function createListener(notify: () => void = () => {}): Listener {
 
 /** Runs `read` with `listener` active, restoring the previous listener. */
 function readWith<T>(listener: Listener, read: () => T): T {
-  const previous = getListener();
-  setListener(listener);
-  try {
-    return read();
-  } finally {
-    setListener(previous);
-  }
+  return withListener(listener, read);
 }
-
-afterEach(() => {
-  setListener(undefined);
-});
 
 describe("createSignal", () => {
   it("returns the initial value", () => {
@@ -47,8 +38,7 @@ describe("createSignal", () => {
     const notify = vi.fn();
     const signal = createSignal(1);
     void signal.value;
-    setListener(createListener(notify));
-    setListener(undefined);
+    withListener(createListener(notify), () => {});
     signal.value = 2;
     expect(notify).not.toHaveBeenCalled();
   });
@@ -135,13 +125,37 @@ describe("createSignal", () => {
   });
 });
 
-describe("setListener / getListener", () => {
-  it("exposes the active listener", () => {
+describe("withListener", () => {
+  it("activates the listener for the duration of the function only", () => {
     const listener = createListener();
     expect(getListener()).toBeUndefined();
-    setListener(listener);
-    expect(getListener()).toBe(listener);
-    setListener(undefined);
+    withListener(listener, () => {
+      expect(getListener()).toBe(listener);
+    });
+    expect(getListener()).toBeUndefined();
+  });
+
+  it("restores the OUTER listener afterwards (scoped, not cleared)", () => {
+    const outer = createListener();
+    const inner = createListener();
+    withListener(outer, () => {
+      withListener(inner, () => {
+        expect(getListener()).toBe(inner);
+      });
+      expect(getListener()).toBe(outer);
+    });
+  });
+
+  it("restores the outer listener even when the function throws", () => {
+    const outer = createListener();
+    withListener(outer, () => {
+      expect(() =>
+        withListener(createListener(), () => {
+          throw new Error("boom");
+        }),
+      ).toThrow("boom");
+      expect(getListener()).toBe(outer);
+    });
     expect(getListener()).toBeUndefined();
   });
 
@@ -155,6 +169,74 @@ describe("setListener / getListener", () => {
     expect(notify).not.toHaveBeenCalled();
     read.value = 2;
     expect(notify).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns the function's return value", () => {
+    expect(withListener(createListener(), () => 7)).toBe(7);
+  });
+});
+
+describe("createTracker", () => {
+  it("invalidates when a signal read through the tracker changes", () => {
+    const onInvalidate = vi.fn();
+    const tracker = createTracker(onInvalidate);
+    const signal = createSignal(1);
+    tracker.read(() => signal.value);
+    signal.value = 2;
+    expect(onInvalidate).toHaveBeenCalledTimes(1);
+  });
+
+  it("is one-shot: re-reading re-subscribes, not reading goes dormant", () => {
+    const onInvalidate = vi.fn();
+    const tracker = createTracker(onInvalidate);
+    const signal = createSignal(1);
+    tracker.read(() => signal.value);
+    signal.value = 2;
+    // Not re-read: the consumed subscription stays consumed.
+    signal.value = 3;
+    expect(onInvalidate).toHaveBeenCalledTimes(1);
+    tracker.read(() => signal.value);
+    signal.value = 4;
+    expect(onInvalidate).toHaveBeenCalledTimes(2);
+  });
+
+  it("dispose drops every subscription but keeps the tracker usable", () => {
+    const onInvalidate = vi.fn();
+    const tracker = createTracker(onInvalidate);
+    const a = createSignal(1);
+    const b = createSignal(1);
+    tracker.read(() => a.value + b.value);
+    tracker.dispose();
+    a.value = 2;
+    b.value = 2;
+    expect(onInvalidate).not.toHaveBeenCalled();
+    tracker.read(() => a.value);
+    a.value = 3;
+    expect(onInvalidate).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not leak tracking outside its read (scoped)", () => {
+    const onInvalidate = vi.fn();
+    const tracker = createTracker(onInvalidate);
+    const signal = createSignal(1);
+    tracker.read(() => {});
+    void signal.value; // read OUTSIDE the tracker's window
+    signal.value = 2;
+    expect(onInvalidate).not.toHaveBeenCalled();
+  });
+
+  it("defers and de-duplicates invalidations inside a batch", () => {
+    const onInvalidate = vi.fn();
+    const tracker = createTracker(onInvalidate);
+    const a = createSignal(1);
+    const b = createSignal(1);
+    tracker.read(() => a.value + b.value);
+    batch(() => {
+      a.value = 2;
+      b.value = 2;
+      expect(onInvalidate).not.toHaveBeenCalled();
+    });
+    expect(onInvalidate).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -170,20 +252,22 @@ describe("untrack", () => {
 
   it("restores the outer listener afterwards", () => {
     const listener = createListener();
-    setListener(listener);
-    untrack(() => {});
-    expect(getListener()).toBe(listener);
+    withListener(listener, () => {
+      untrack(() => {});
+      expect(getListener()).toBe(listener);
+    });
   });
 
   it("restores the outer listener even when the function throws", () => {
     const listener = createListener();
-    setListener(listener);
-    expect(() =>
-      untrack(() => {
-        throw new Error("boom");
-      }),
-    ).toThrow("boom");
-    expect(getListener()).toBe(listener);
+    withListener(listener, () => {
+      expect(() =>
+        untrack(() => {
+          throw new Error("boom");
+        }),
+      ).toThrow("boom");
+      expect(getListener()).toBe(listener);
+    });
   });
 
   it("returns the function's return value", () => {
@@ -428,5 +512,36 @@ describe("computed", () => {
       void direct.value; // must still track the component listener
     });
     expect(listener.subscriptions.size).toBe(2);
+  });
+
+  describe("cycle detection", () => {
+    it("throws a named error on a direct self-read instead of overflowing", () => {
+      const self: { value?: number } = {};
+      const derived = computed<number>(
+        () => ((self.value as number | undefined) ?? 0) + 1,
+      );
+      Object.defineProperty(self, "value", {
+        get: () => derived.value,
+      });
+      expect(() => derived.value).toThrow(/Cycle detected/);
+    });
+
+    it("throws on an indirect cycle through another computed", () => {
+      /* eslint-disable prefer-const */
+      let b: { readonly value: number };
+      const a = computed(() => b.value + 1);
+      b = computed(() => a.value + 1);
+      /* eslint-enable prefer-const */
+      expect(() => a.value).toThrow(/Cycle detected/);
+    });
+
+    it("stays usable after a detected cycle resolves", () => {
+      const useSelf = createSignal(true);
+      let derived: { readonly value: number };
+      derived = computed(() => (useSelf.value ? derived.value : 42));
+      expect(() => derived.value).toThrow(/Cycle detected/);
+      useSelf.value = false;
+      expect(derived.value).toBe(42);
+    });
   });
 });

@@ -2,10 +2,10 @@
  * Reactive signal primitive for jsonisch.
  *
  * A deliberately tiny push-based reactivity system built for a per-component
- * subscription model (see `@rwa/jsonisch/react` `useSignals`):
+ * subscription model (see `@rwa/jsonisch/react` `useSignalSnapshot`):
  *
- * - Reads made while a listener is active (via `setListener`) subscribe that
- *   listener to the signal.
+ * - Reads made while a listener is active (via `withListener`, or a
+ *   `Tracker`'s `read`) subscribe that listener to the signal.
  * - Subscriptions are ONE-SHOT: notifying a listener consumes its
  *   subscription. Listeners are expected to re-read (and thereby
  *   re-subscribe) as a consequence of being notified — exactly what a React
@@ -75,22 +75,82 @@ export interface Listener {
 let currentListener: Listener | undefined;
 
 /**
- * Sets (or clears) the active listener that signal reads subscribe to.
+ * Runs a function with the given listener active, restoring the previous
+ * listener afterwards (throw included). This is the ONLY way to activate a
+ * listener — a set-and-forget global (the v1 `setListener`) let one
+ * component's tracking window leak into whatever rendered next; the scoped
+ * form makes that structurally impossible.
  *
- * @param listener The listener to activate, or `undefined` to deactivate.
+ * @param listener The listener to activate (or `undefined` to suspend
+ * tracking, the `untrack` case).
+ * @param fn The function whose signal reads subscribe the listener.
+ *
+ * @returns The return value of the function.
  */
-export function setListener(listener: Listener | undefined): void {
+export function withListener<T>(
+  listener: Listener | undefined,
+  fn: () => T,
+): T {
+  const previousListener = currentListener;
   currentListener = listener;
+  try {
+    return fn();
+  } finally {
+    currentListener = previousListener;
+  }
 }
 
 /**
  * Returns the currently active listener, if any.
  *
- * Advanced/internal: exposed for the store implementation and for tests that
- * verify subscription bookkeeping.
+ * Advanced/internal: exposed for tests that verify subscription bookkeeping.
  */
 export function getListener(): Listener | undefined {
   return currentListener;
+}
+
+/**
+ * A retained tracked-read handle: `read` subscribes its owner to every
+ * signal the function touches, `dispose` drops all current subscriptions.
+ */
+export interface Tracker {
+  /**
+   * Runs the function with the tracker's listener active and returns its
+   * result. One-shot semantics apply: a notification consumes the
+   * subscriptions, so the notified party re-reads (and thereby
+   * re-subscribes) to stay live.
+   */
+  readonly read: <T>(fn: () => T) => T;
+  /**
+   * Drops every current subscription. The tracker stays usable — a later
+   * `read` re-subscribes.
+   */
+  readonly dispose: () => void;
+}
+
+/**
+ * Creates a tracker: the non-React primitive the react adapter's snapshot
+ * store is built on. `onInvalidate` fires when any signal read during the
+ * last `read` changes (deferred and de-duplicated by an active `batch`).
+ *
+ * @param onInvalidate Called when a tracked signal changes.
+ *
+ * @returns The created tracker.
+ */
+export function createTracker(onInvalidate: () => void): Tracker {
+  const listener: Listener = {
+    notify: onInvalidate,
+    subscriptions: new Set(),
+  };
+  return {
+    read: (fn) => withListener(listener, fn),
+    dispose: () => {
+      for (const subscribers of listener.subscriptions) {
+        subscribers.delete(listener);
+      }
+      listener.subscriptions.clear();
+    },
+  };
 }
 
 /**
@@ -189,6 +249,7 @@ export function computed<T>(compute: () => T): ReadonlySignal<T> {
   const subscribers = new Set<Listener>();
   let cache: T;
   let stale = true;
+  let computing = false;
   const self: Listener = {
     // All propagation happens in `invalidate`; by the time deferred batch
     // notifications run there is nothing left for the computed to do.
@@ -203,6 +264,17 @@ export function computed<T>(compute: () => T): ReadonlySignal<T> {
   };
   return {
     get value(): T {
+      // Re-entrant read = the compute function reads its own value
+      // (directly or through other computeds). Without this guard a
+      // self-referential user formula recurses until the stack blows;
+      // with it, the derivation layer catches a named error and shows
+      // #ERROR. Checked before `track` so the doomed read cannot first
+      // subscribe the computed to itself.
+      if (computing) {
+        throw new Error(
+          "Cycle detected: a computed signal's compute function reads its own value",
+        );
+      }
       track(subscribers);
       if (stale) {
         // Drop subscriptions from the previous run before re-tracking so
@@ -211,12 +283,11 @@ export function computed<T>(compute: () => T): ReadonlySignal<T> {
           sourceSubscribers.delete(self);
         }
         self.subscriptions.clear();
-        const previousListener = currentListener;
-        currentListener = self;
+        computing = true;
         try {
-          cache = compute();
+          cache = withListener(self, compute);
         } finally {
-          currentListener = previousListener;
+          computing = false;
         }
         stale = false;
       }
@@ -260,11 +331,5 @@ export function batch<T>(fn: () => T): T {
  * @returns The return value of the function.
  */
 export function untrack<T>(fn: () => T): T {
-  const previousListener = currentListener;
-  currentListener = undefined;
-  try {
-    return fn();
-  } finally {
-    currentListener = previousListener;
-  }
+  return withListener(undefined, fn);
 }

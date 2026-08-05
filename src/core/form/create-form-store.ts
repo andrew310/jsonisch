@@ -1,7 +1,9 @@
 import { buildDerivation } from "../derivation/build-derivation";
+import { getFieldBool } from "../field/get-field-bool";
 import { initializeFieldStore } from "../field/initialize-field-store";
-import { createSignal } from "../framework";
+import { computed, createSignal } from "../framework";
 import { buildMeta } from "../meta/build-meta";
+import { hasDirtyMeta } from "../meta/encode-companion";
 import { buildVisibility } from "../visibility/build-visibility";
 import type { FormConfig, InternalFormStore } from "../types";
 
@@ -68,5 +70,21 @@ export function createFormStore(config: FormConfig): InternalFormStore {
   // formula field resolves through its derived signal
   buildVisibility(store as InternalFormStore);
 
-  return store as InternalFormStore;
+  // Cache the form-level aggregates as computeds LAST, over the fully
+  // built tree: the whole-tree walk runs once per invalidation, not once
+  // per read (the snapshot adapter reads these on every notification).
+  // Short-circuiting is safe under computed semantics — an unread branch
+  // cannot flip the outcome while every read branch is unchanged, and any
+  // read branch changing triggers a full re-evaluation.
+  const form = store as InternalFormStore;
+  store.aggregates = {
+    isTouched: computed(() => getFieldBool(form, "isTouched")),
+    isEdited: computed(() => getFieldBool(form, "isEdited")),
+    isDirty: computed(
+      () => getFieldBool(form, "isDirty") || hasDirtyMeta(form),
+    ),
+    isValid: computed(() => !getFieldBool(form, "validationErrors")),
+  };
+
+  return form;
 }

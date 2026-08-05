@@ -51,9 +51,10 @@ export {
   batch,
   computed,
   createSignal,
+  createTracker,
   getListener,
-  setListener,
   untrack,
+  withListener,
 } from "./signal";
-export type { Listener, ReadonlySignal, Signal } from "./signal";
+export type { Listener, ReadonlySignal, Signal, Tracker } from "./signal";
 export * from "./types";
