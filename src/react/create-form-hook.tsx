@@ -1,3 +1,9 @@
+// "use no memo" — jsonisch reactivity is signal-based: `useSignals`
+// re-subscribes from the reads of EVERY render, so the React Compiler's
+// auto-memoization (which skips those reads when `field`/`form` refs are
+// stable) silently kills the subscriptions and freezes the UI
+// (LOS-567; same class as the PR #334 zustand freeze).
+"use no memo";
 import { useMemo, type ReactElement, type ReactNode } from "react";
 import type { Path } from "../core/types";
 import {
@@ -115,6 +121,9 @@ export function createFormHook(config: FormHookConfig): FormHook {
     path,
   }: Omit<AppFieldProps, "children">): ReactNode {
     const field = useField(of, path);
+    // Conditional WHEN: an unsatisfied rule skips rendering only — the
+    // field's state, dirtiness, and payload spot survive the toggle
+    if (!field.visible) return null;
     const Widget = config.widgets[field.control] ?? Fallback;
     return <Widget field={field} form={of} />;
   }

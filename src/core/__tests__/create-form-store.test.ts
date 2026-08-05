@@ -231,14 +231,32 @@ describe("createFormStore", () => {
       ).toThrow('must be an "object" schema');
     });
 
-    test("should throw on an object schema without properties (map shape)", () => {
-      expect(() =>
-        createTestStore(
-          objectSchema({
-            lookup: { type: "object", additionalProperties: { type: "string" } },
-          }),
-        ),
-      ).toThrow("map shape");
+    test("should walk a property-less object as an opaque value leaf", () => {
+      // Structured whole-object values (interest-rate, ledger line, map
+      // bags): no allow-list to walk into, the widget owns the object
+      const store = createTestStore(
+        objectSchema({
+          lookup: { type: "object", additionalProperties: { type: "string" } },
+        }),
+        { initialInput: { lookup: { a: "1" } } },
+      );
+      const lookup = getValueStore(store, ["lookup"]);
+      expect(lookup.kind).toBe("value");
+      expect(lookup.input.value).toEqual({ a: "1" });
+    });
+
+    test("should walk an array of property-less objects as an opaque value leaf", () => {
+      // Opaque row shapes (address entries, phone entries): the whole
+      // array is the value
+      const store = createTestStore(
+        objectSchema({
+          addresses: { type: "array", items: { type: "object" } },
+        }),
+        { initialInput: { addresses: [{ street: "1 Main" }] } },
+      );
+      const addresses = getValueStore(store, ["addresses"]);
+      expect(addresses.kind).toBe("value");
+      expect(addresses.input.value).toEqual([{ street: "1 Main" }]);
     });
 
     test("should throw on a schema with no type and no structure", () => {

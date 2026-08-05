@@ -660,7 +660,10 @@ describe("derivation", () => {
       expect(exprs.sum.fn).not.toHaveBeenCalled();
     });
 
-    test("should start in formula mode when the field starts empty", () => {
+    test("should open empty as a typeable estimate whose output falls through to the formula", () => {
+      // Companion-less default is estimate (manual-first, LOS-461) — but an
+      // EMPTY estimate does not pin: dependents read the formula until a
+      // real estimate is typed (the LOS-515 silent-takeover rule)
       const exprs = { sum: stub(["a"], (s) => num(s.a) * 2) };
       const store = createFormStore({
         schema: objectSchema(
@@ -674,7 +677,13 @@ describe("derivation", () => {
         calcEngine: makeEngine(exprs),
       });
       const fee = getValueStore(store, ["fee"]);
-      expect(fee.mode?.value).toBe("formula");
+      expect(fee.mode?.value).toBe("estimate");
+      expect(fee.derived!.value).toStrictEqual({ value: 20, error: null });
+
+      // Typing a real estimate pins; clearing it un-pins again
+      setInput(store, ["fee"], 7);
+      expect(fee.derived!.value).toStrictEqual({ value: 7, error: null });
+      setInput(store, ["fee"], "");
       expect(fee.derived!.value).toStrictEqual({ value: 20, error: null });
     });
 

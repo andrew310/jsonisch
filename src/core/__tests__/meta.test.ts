@@ -86,7 +86,10 @@ describe("meta channel", () => {
       expect(getValueStore(store, ["fee"]).mode?.value).toBe("estimate");
     });
 
-    test("should fall back to the value-presence heuristic without a companion", () => {
+    test("should default to estimate mode without a companion (manual-first)", () => {
+      // janska parity (LOS-461): a companion-less field is always typeable;
+      // the empty-estimate fall-through in derivation keeps dependents on
+      // the formula until a real estimate lands
       const engine = makeEngine(doubleA());
       const withValue = createFormStore({
         schema: objectSchema({ a: { type: "number" }, fee: estimateField("double") }),
@@ -100,7 +103,7 @@ describe("meta channel", () => {
         initialInput: { a: 10 },
         calcEngine: engine,
       });
-      expect(getValueStore(empty, ["fee"]).mode?.value).toBe("formula");
+      expect(getValueStore(empty, ["fee"]).mode?.value).toBe("estimate");
     });
 
     test("should create the mode signal even without a calc engine", () => {

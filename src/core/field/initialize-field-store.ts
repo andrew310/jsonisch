@@ -112,10 +112,13 @@ export function initializeFieldStore(
   // Otherwise, if schema is an array with a single item schema, initialize
   // as array field. Tuple form is unsupported; an array WITHOUT items stays
   // a value leaf below (its whole array is the value — legacy relation
-  // arrays and option lists without item schemas).
+  // arrays and option lists without item schemas), and so does an array
+  // whose items are property-less objects (opaque row shapes like address
+  // entries — no allow-list to walk into, the widget owns the whole array).
   if (
     (primary === "array" || primary === undefined) &&
-    schema.items !== undefined
+    schema.items !== undefined &&
+    !isOpaqueObject(schema.items)
   ) {
     if (Array.isArray(schema.items)) {
       throw new Error(
@@ -157,16 +160,10 @@ export function initializeFieldStore(
     return;
   }
 
-  // Otherwise, reject object/map shapes that cannot hold field values —
-  // an object type without declared properties has no allow-list to walk
-  if (primary === "object" || schema.additionalProperties !== undefined) {
-    throw new Error(
-      `"object" schema without "properties" (map shape) is not supported (at ${JSON.stringify(path)})`,
-    );
-  }
-
   // Otherwise, initialize as value field (leaf node) when the schema can
-  // hold a value: a declared type, a relation `$ref`, or an option shape
+  // hold a value: a declared type (including a property-less `object` —
+  // an opaque structured value like an interest-rate or ledger line, whose
+  // widget owns the whole object), a relation `$ref`, or an option shape
   if (
     primary !== undefined ||
     types.includes("null") ||
@@ -193,5 +190,19 @@ export function initializeFieldStore(
   // Remaining shapes are unsupported
   throw new Error(
     `Unsupported schema without "type", "properties", "items", "$ref", "enum", "oneOf" or "const" (at ${JSON.stringify(path)})`,
+  );
+}
+
+/**
+ * Returns whether a single item schema is an opaque object shape: object-
+ * typed with no declared `properties` — no allow-list to walk into, so the
+ * parent array stays a value leaf holding the whole array.
+ */
+function isOpaqueObject(items: JsonSchema | JsonSchema[]): boolean {
+  if (Array.isArray(items)) return false;
+  const itemTypes = typeList(items);
+  return (
+    itemTypes.includes("object") &&
+    (items.properties === undefined || typeof items.properties !== "object")
   );
 }

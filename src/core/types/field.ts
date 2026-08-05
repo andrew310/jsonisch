@@ -4,6 +4,7 @@ import type { DerivationMode, DerivedState } from "./derivation";
 import type { InternalMetaStore } from "./meta";
 import type { Path } from "./path";
 import type { JsonSchema } from "./schema";
+import type { VisibleWhen } from "./visibility";
 
 /**
  * The structural kind of a field store node, mirroring the JSON-Schema
@@ -103,6 +104,21 @@ export interface InternalBaseStore {
    * empty-aware compare: `null` ≡ `undefined` ≡ `""`).
    */
   isDirty: Signal<boolean>;
+  /**
+   * The conditional-visibility rule of the field, resolved once at store
+   * init from the root schema's `allOf` `if/then/else` blocks. Root-level
+   * fields only (the same boundary as derivation); absent on ungated
+   * fields.
+   */
+  visibleWhen?: VisibleWhen | undefined;
+  /**
+   * Whether the field currently renders: a computed over the watched
+   * field's resolved value (form wins, `offFormValues` fills). Present
+   * only alongside `visibleWhen` — absent means always visible. Gates
+   * RENDERING only; a hidden field keeps its state, dirtiness, and place
+   * in the payload.
+   */
+  visible?: ReadonlySignal<boolean> | undefined;
 }
 
 /**

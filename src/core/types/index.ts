@@ -32,3 +32,4 @@ export type {
   ValidationIssue,
   ValidationMode,
 } from "./form";
+export type { VisibleWhen, VisibleWhenOp } from "./visibility";

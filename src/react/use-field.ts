@@ -1,3 +1,9 @@
+// "use no memo" — jsonisch reactivity is signal-based: `useSignals`
+// re-subscribes from the reads of EVERY render, so the React Compiler's
+// auto-memoization (which skips those reads when `field`/`form` refs are
+// stable) silently kills the subscriptions and freezes the UI
+// (LOS-567; same class as the PR #334 zustand freeze).
+"use no memo";
 import { useEffect, useMemo } from "react";
 import { getFieldBool } from "../core/field/get-field-bool";
 import { getFieldInput } from "../core/field/get-field-input";
@@ -75,6 +81,10 @@ export function useField(form: FormStore, path: Path): FieldStore {
       get isValid() {
         // Calc errors don't invalidate the field — the user can't fix them
         return !getFieldBool(internalFieldStore, "validationErrors");
+      },
+      get visible() {
+        if (internalFieldStore.control === "hidden") return false;
+        return internalFieldStore.visible?.value ?? true;
       },
       onChange(value: unknown) {
         setFieldInput(internalFormStore, path, value);

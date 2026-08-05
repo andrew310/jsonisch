@@ -133,6 +133,14 @@ export interface FieldStore {
    */
   readonly isValid: boolean;
   /**
+   * Whether the field currently renders: `false` for a `hidden` control or
+   * while a conditional-visibility rule (`visibleWhen`) is unsatisfied.
+   * Registry dispatch skips invisible fields; headless layouts decide
+   * themselves. A hidden field keeps its state, dirtiness, and place in
+   * the payload.
+   */
+  readonly visible: boolean;
+  /**
    * Sets the field input (controlled-component change handler).
    */
   readonly onChange: (value: unknown) => void;

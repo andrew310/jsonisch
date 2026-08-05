@@ -1,5 +1,4 @@
-import { isEmptyish } from "../dirty";
-import { computed, createSignal, untrack } from "../framework";
+import { computed, createSignal } from "../framework";
 import { readOwn } from "../schema-utils";
 import type {
   DerivationMode,
@@ -37,10 +36,9 @@ function readCompanion(
  * companion without a mode, janska's default) reopens as `estimate`,
  * `calculated` reopens as `formula` even though a value is persisted (the
  * materialized formula result — treating it as an estimate was the v1c
- * provisional gap). With NO companion the value-presence heuristic decides
- * (a field starting with a value holds it as the estimate, an empty one
- * computes) — mirroring the server recompute's own defaulting for
- * companion-less fields, so client mode and server write behavior agree.
+ * provisional gap). With NO companion the field opens as `estimate`
+ * (manual-first, LOS-461) — the empty-estimate fall-through in derivation
+ * keeps dependents on the formula until a real estimate is typed.
  *
  * Root-level only, the same boundary as derivation: janska's stage form is
  * flat, and row-level companions ride the row-partition save path, not the
@@ -64,20 +62,15 @@ export function buildMeta(
 
 /**
  * Resolves the mode a `<key>Source` companion decodes to: the companion
- * wins; without one the value-presence heuristic on the given baseline
- * value decides (matching the server recompute's own defaulting).
+ * wins; without one the field opens as `estimate` — janska's manual-first
+ * default (LOS-461), so a fresh field is always typeable. The settled
+ * LOS-515 rule keeps the modes honest without a heuristic: an EMPTY
+ * estimate silently defers to the formula (derivation + server recompute
+ * both fall through), and a typed estimate pins with a `manual` companion
+ * on save.
  */
-function resolveSourceMode(
-  companion: SourceCompanion,
-  baselineValue: unknown,
-): DerivationMode {
-  return companion.mode === "calculated"
-    ? "formula"
-    : companion.mode === "manual" || Object.keys(companion).length > 0
-      ? "estimate"
-      : isEmptyish(baselineValue)
-        ? "formula"
-        : "estimate";
+function resolveSourceMode(companion: SourceCompanion): DerivationMode {
+  return companion.mode === "calculated" ? "formula" : "estimate";
 }
 
 /**
@@ -104,10 +97,7 @@ function buildSourceMeta(
   store: InternalValueStore,
   companion: SourceCompanion,
 ): void {
-  const initialMode = resolveSourceMode(
-    companion,
-    untrack(() => store.input.value),
-  );
+  const initialMode = resolveSourceMode(companion);
 
   const mode = createSignal<DerivationMode>(initialMode);
   const startMode = createSignal<DerivationMode>(initialMode);
@@ -191,9 +181,7 @@ function rebaseSourceMeta(
   companion: SourceCompanion,
 ): void {
   const mode = store.mode!;
-  // The heuristic reads the REBASED baseline (`startInput`), never the
-  // possibly-dirty live input
-  const newMode = resolveSourceMode(companion, store.startInput.value);
+  const newMode = resolveSourceMode(companion);
   const modeClean = mode.value === meta.startMode.value;
 
   meta.startCompanion = companion;

@@ -2,6 +2,7 @@ import { buildDerivation } from "../derivation/build-derivation";
 import { initializeFieldStore } from "../field/initialize-field-store";
 import { createSignal } from "../framework";
 import { buildMeta } from "../meta/build-meta";
+import { buildVisibility } from "../visibility/build-visibility";
 import type { FormConfig, InternalFormStore } from "../types";
 
 /**
@@ -62,6 +63,10 @@ export function createFormStore(config: FormConfig): InternalFormStore {
   // Build the derivation graph over the walked tree (root-level `x-formula`
   // fields become computed signals; no-op without an injected calc engine)
   buildDerivation(store as InternalFormStore, config.calcEngine);
+
+  // Build conditional visibility AFTER derivation — a WHEN watching a
+  // formula field resolves through its derived signal
+  buildVisibility(store as InternalFormStore);
 
   return store as InternalFormStore;
 }

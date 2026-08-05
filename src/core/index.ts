@@ -31,6 +31,8 @@ export { setInitialFieldInput } from "./field/set-initial-field-input";
 export { swapItemState } from "./field/swap-item-state";
 export { walkFieldStore } from "./field/walk-field-store";
 export { createFormStore, DEFAULT_EMPTY_INPUT } from "./form/create-form-store";
+export { buildVisibility } from "./visibility/build-visibility";
+export { resolveConditionals } from "./visibility/resolve-conditionals";
 export { validateFormInput } from "./form/validate-form-input";
 export type {
   ValidateFormInputConfig,

@@ -1,3 +1,4 @@
+import { isEmptyish } from "../dirty";
 import { getFieldInput } from "../field/get-field-input";
 import { computed } from "../framework";
 import { readOwn } from "../schema-utils";
@@ -194,11 +195,14 @@ export function buildDerivation(
     // The output dependents chain through and the field displays: the
     // estimate pin wins — hold the manual value, read no deps (so dep edits
     // do not recompute a pinned field; the lazy computed only touches
-    // `formulaValue` when unpinned)
+    // `formulaValue` when unpinned). An EMPTY estimate does NOT pin — the
+    // settled LOS-515 rule ("empty manual → silent takeover"): dependents
+    // read the formula result until a real estimate is typed, matching the
+    // server recompute's fall-through and janska's eval-base behavior.
     const derived =
       store.control === "estimate"
         ? computed<DerivedState>(() =>
-            mode?.value === "estimate"
+            mode?.value === "estimate" && !isEmptyish(store.input.value)
               ? { value: store.input.value, error: null }
               : formulaValue.value,
           )
