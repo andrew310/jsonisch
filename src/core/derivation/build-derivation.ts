@@ -82,6 +82,22 @@ export function buildDerivation(
     const child = internalFormStore.children[key];
     if (child.kind !== "value") continue;
     if (child.control !== "formula" && child.control !== "estimate") continue;
+    // `x-server-maintained`: a dedicated server process owns the persisted
+    // value (the formula is documentation — its deps may be read-time-only
+    // scope the form never has). The field still renders as a formula
+    // widget, so its derived channel passes the STORED input through
+    // verbatim; it never enters the dep graph, and a formula that reads it
+    // resolves through the same stored value.
+    if (child.schema["x-server-maintained"] === true) {
+      const passthrough = computed<DerivedState>(() => ({
+        value: getFieldInput(child),
+        error: null,
+      }));
+      child.formulaValue = passthrough;
+      child.derived = passthrough;
+      child.isRollup = false;
+      continue;
+    }
     const formula = child.schema["x-formula"];
     if (typeof formula !== "string" || formula.trim() === "") continue;
 

@@ -744,6 +744,53 @@ describe("derivation", () => {
     });
   });
 
+  describe("x-server-maintained fields (LOS-567 PR B)", () => {
+    test("should pass the stored input through instead of deriving", () => {
+      // maturityDate's shape: a formula documents intent, but the server
+      // (the modifications trio) authors the persisted value, and the
+      // formula's deps aren't in form scope. The widget must show the
+      // stored value, never a client re-derivation.
+      const exprs = { wrong: stub(["a"], () => 999) };
+      const store = createFormStore({
+        schema: objectSchema({
+          a: { type: "number" },
+          maturityDate: formulaField("wrong", { "x-server-maintained": true }),
+        }),
+        initialInput: { a: 1, maturityDate: "2027-06-01" },
+        calcEngine: makeEngine(exprs),
+      });
+      const field = getValueStore(store, ["maturityDate"]);
+      expect(field.derived?.value).toStrictEqual({
+        value: "2027-06-01",
+        error: null,
+      });
+      expect(field.isRollup).toBe(false);
+      expect(exprs.wrong.fn).not.toHaveBeenCalled();
+    });
+
+    test("a dependent formula reads the stored value, and a baseline rebase flows through", () => {
+      const exprs = {
+        wrong: stub(["a"], () => 999),
+        plusOne: stub(["m"], (s) => num(s.m) + 1),
+      };
+      const store = createFormStore({
+        schema: objectSchema({
+          a: { type: "number" },
+          m: formulaField("wrong", { "x-server-maintained": true }),
+          out: formulaField("plusOne"),
+        }),
+        initialInput: { a: 1, m: 10 },
+        calcEngine: makeEngine(exprs),
+      });
+      expect(getValueStore(store, ["out"]).derived!.value.value).toBe(11);
+      // Fresh server record (e.g. after an extension shifted the column):
+      // the passthrough derived signal follows the rebased input.
+      applyBaseline(store, { data: { a: 1, m: 22 } });
+      expect(getValueStore(store, ["m"]).derived!.value.value).toBe(22);
+      expect(getValueStore(store, ["out"]).derived!.value.value).toBe(23);
+    });
+  });
+
   describe("without a calc engine", () => {
     test("should walk formula fields as plain value leaves", () => {
       const store = createFormStore({
