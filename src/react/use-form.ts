@@ -1,17 +1,28 @@
-// "use no memo" — jsonisch reactivity is signal-based: `useSignals`
-// re-subscribes from the reads of EVERY render, so the React Compiler's
-// auto-memoization (which skips those reads when `field`/`form` refs are
-// stable) silently kills the subscriptions and freezes the UI
-// (LOS-567; same class as the PR #334 zustand freeze).
-"use no memo";
 import { useLayoutEffect, useMemo } from "react";
-import { getFieldBool } from "../core/field/get-field-bool";
 import { createFormStore } from "../core/form/create-form-store";
-import { hasDirtyMeta } from "../core/meta/encode-companion";
 import { validateFormInput } from "../core/form/validate-form-input";
-import type { FormConfig } from "../core/types";
+import type { FormConfig, InternalFormStore } from "../core/types";
 import type { FormStore } from "./types";
-import { useSignals } from "./use-signals";
+import { useSignalSnapshot } from "./use-signal-snapshot";
+
+/**
+ * The form-level reactive state, read in one tracked pass. The whole-tree
+ * walks behind `isTouched`/`isEdited`/`isDirty`/`isValid` are cached as
+ * computeds on the internal store (`aggregates`), so a notification
+ * re-reads four cache hits, not four tree walks.
+ */
+function readFormSnapshot(internal: InternalFormStore) {
+  return {
+    isSubmitting: internal.isSubmitting.value,
+    isSubmitted: internal.isSubmitted.value,
+    isValidating: internal.isValidating.value,
+    isTouched: internal.aggregates.isTouched.value,
+    isEdited: internal.aggregates.isEdited.value,
+    isDirty: internal.aggregates.isDirty.value,
+    isValid: internal.aggregates.isValid.value,
+    errors: internal.errors.value,
+  };
+}
 
 /**
  * Creates a reactive form store from a form configuration. The store is
@@ -19,13 +30,15 @@ import { useSignals } from "./use-signals";
  * are ignored (`applyBaseline` rebases on a fresh server record; `reset`
  * with a new `initialInput` discards in-flight edits with it).
  *
+ * The returned store is an immutable SNAPSHOT over the stable `internal`
+ * store: its identity changes when any observed form-level value changes
+ * (see `useField` for the model).
+ *
  * @param config The form configuration.
  *
- * @returns The form store with reactive properties.
+ * @returns The form store snapshot.
  */
 export function useForm(config: FormConfig): FormStore {
-  useSignals();
-
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const internal = useMemo(() => createFormStore(config), []);
 
@@ -36,38 +49,13 @@ export function useForm(config: FormConfig): FormStore {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return useMemo(
-    () => ({
-      internal,
-      get isSubmitting() {
-        return internal.isSubmitting.value;
-      },
-      get isSubmitted() {
-        return internal.isSubmitted.value;
-      },
-      get isValidating() {
-        return internal.isValidating.value;
-      },
-      get isTouched() {
-        return getFieldBool(internal, "isTouched");
-      },
-      get isEdited() {
-        return getFieldBool(internal, "isEdited");
-      },
-      get isDirty() {
-        // A dirty meta channel (mode flip, basis change) counts: it
-        // produces a payload, so Save must enable
-        return getFieldBool(internal, "isDirty") || hasDirtyMeta(internal);
-      },
-      get isValid() {
-        // Calc errors are the admin's problem (#ERROR display), not the form
-        // user's — only user-fixable validation gates validity
-        return !getFieldBool(internal, "validationErrors");
-      },
-      get errors() {
-        return internal.errors.value;
-      },
-    }),
+  const reactive = useSignalSnapshot(
+    () => readFormSnapshot(internal),
     [internal],
+  );
+
+  return useMemo(
+    () => ({ internal, ...reactive }),
+    [internal, reactive],
   );
 }

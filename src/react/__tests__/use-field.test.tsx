@@ -119,10 +119,13 @@ describe("useField", () => {
     expect(store.isEdited.value).toBe(true);
   });
 
-  it("returns a memoized field store reference across re-renders", () => {
+  it("keeps the field identity stable across unrelated re-renders, mints a new one on observed change", () => {
     const refs: FieldStore[] = [];
+    let rerender!: () => void;
     function Collector({ form }: { form: FormStore }): ReactElement {
       const field = useField(form, ["name"]);
+      const [, setTick] = useState(0);
+      rerender = () => setTick((tick) => tick + 1);
       refs.push(field);
       return (
         <input
@@ -138,12 +141,28 @@ describe("useField", () => {
       </TestForm>,
     );
 
+    // An unrelated re-render keeps the snapshot identity — downstream
+    // memo/compiler caches stay warm.
+    const beforeUnrelated = refs.at(-1);
+    act(() => rerender());
+    expect(refs.length).toBeGreaterThan(1);
+    expect(refs.at(-1)).toBe(beforeUnrelated);
+
+    // An observed value changing mints a NEW identity — that identity
+    // change is what invalidates React Compiler memo caches (the
+    // snapshot contract; the v1 stable-reference getter model froze
+    // under the compiler, LOS-567).
     act(() => {
       getValueStore(form.internal, ["name"]).input.value = "Jane";
     });
+    const afterChange = refs.at(-1);
+    expect(afterChange).not.toBe(beforeUnrelated);
+    expect(afterChange!.input).toBe("Jane");
 
-    expect(refs.length).toBeGreaterThan(1);
-    expect(new Set(refs).size).toBe(1);
+    // Callbacks and DOM plumbing stay identity-stable across snapshots
+    // (uncontrolled remount churn would reset focus handlers otherwise).
+    expect(afterChange!.onChange).toBe(beforeUnrelated!.onChange);
+    expect(afterChange!.props.ref).toBe(beforeUnrelated!.props.ref);
   });
 
   it("wires blur-mode validation through real DOM events", () => {
@@ -426,7 +445,7 @@ describe("useForm", () => {
     expect(submitValidator).not.toHaveBeenCalled();
   });
 
-  it("re-renders on tracked form state and keeps a stable store reference", () => {
+  it("re-renders on tracked form state with a new snapshot identity over a stable internal store", () => {
     const refs: FormStore[] = [];
     function Dirty(): ReactElement {
       const form = useForm({
@@ -440,6 +459,7 @@ describe("useForm", () => {
     let formRef!: FormStore;
     const { getByTestId } = render(<Dirty />);
     expect(getByTestId("dirty").textContent).toBe("false");
+    const before = refs.at(-1);
 
     act(() => {
       getValueStore(formRef.internal, ["name"]).input.value = "Jane";
@@ -447,6 +467,10 @@ describe("useForm", () => {
     });
 
     expect(getByTestId("dirty").textContent).toBe("true");
-    expect(new Set(refs).size).toBe(1);
+    // Snapshot contract: the dirty flip mints a new form identity (that's
+    // what re-renders consumers under the compiler)…
+    expect(refs.at(-1)).not.toBe(before);
+    // …while the internal store stays the same object for the form's life.
+    expect(refs.at(-1)!.internal).toBe(before!.internal);
   });
 });

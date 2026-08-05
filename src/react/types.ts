@@ -14,10 +14,12 @@ import type {
 } from "../core/types";
 
 /**
- * The public form store returned by `useForm`/`useAppForm`. Property reads
- * are reactive inside a component that called `useSignals` (every jsonisch
- * hook does). The internal store is reachable for the methods layer —
- * every method accepts this wrapper directly.
+ * The public form store returned by `useForm`/`useAppForm`: an immutable
+ * snapshot whose identity changes when any observed form-level value
+ * changes — reactivity rides on the object, not on property reads, so it
+ * composes with React Compiler memoization. The internal store is
+ * reachable for the methods layer — every method accepts this wrapper
+ * directly.
  */
 export interface FormStore {
   /**
@@ -87,9 +89,10 @@ export interface FieldElementProps {
 }
 
 /**
- * The public field store returned by `useField`. Property reads are
- * reactive; widgets are controlled components that render `input` and call
- * `onChange` with the new value.
+ * The public field store returned by `useField`: an immutable snapshot —
+ * a new object identity whenever any observed value changes, stable
+ * otherwise. Widgets are plain controlled components that render `input`
+ * and call `onChange` with the new value; no signal hook, no directive.
  */
 export interface FieldStore {
   /**

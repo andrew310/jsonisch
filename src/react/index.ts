@@ -18,4 +18,4 @@ export type {
 export { useField } from "./use-field";
 export { useFieldArray } from "./use-field-array";
 export { useForm } from "./use-form";
-export { useSignals } from "./use-signals";
+export { snapshotEqual, useSignalSnapshot } from "./use-signal-snapshot";
