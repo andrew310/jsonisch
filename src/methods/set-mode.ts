@@ -34,6 +34,10 @@ export interface SetModeOptions {
  * Either flip dirties the companion (`lastFlippedAt` stamped), so a flip
  * with no other edit still produces a payload.
  *
+ * Works at any depth: an estimate field inside an array row has its own
+ * meta channel, built from the row's companions (LOS-602). The throw is
+ * reserved for a field that genuinely has none — a non-estimate control.
+ *
  * @param form The form store containing the field.
  * @param path The path to the estimate field.
  * @param mode The target mode (a no-op when already current).

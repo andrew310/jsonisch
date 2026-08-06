@@ -1,4 +1,5 @@
 import { batch, untrack } from "../framework";
+import { swapMetaState } from "../meta/build-meta";
 import type { InternalFieldStore, InternalFormStore } from "../types";
 import { initializeFieldStore } from "./initialize-field-store";
 
@@ -57,6 +58,14 @@ export function swapItemState(
       firstInternalFieldStore.isDirty.value =
         secondInternalFieldStore.isDirty.value;
       secondInternalFieldStore.isDirty.value = tempIsDirty;
+
+      // The meta channel travels with its row (see `copyItemState`)
+      if (
+        firstInternalFieldStore.kind === "value" &&
+        secondInternalFieldStore.kind === "value"
+      ) {
+        swapMetaState(firstInternalFieldStore, secondInternalFieldStore);
+      }
 
       // If both stores are arrays, swap array-specific state
       if (

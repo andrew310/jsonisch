@@ -1,4 +1,5 @@
 import { batch, untrack } from "../framework";
+import { copyMetaState } from "../meta/build-meta";
 import type { InternalFieldStore, InternalFormStore } from "../types";
 import { initializeFieldStore } from "./initialize-field-store";
 
@@ -37,6 +38,15 @@ export function copyItemState(
         fromInternalFieldStore.isEdited.value;
       toInternalFieldStore.isDirty.value =
         fromInternalFieldStore.isDirty.value;
+
+      // The meta channel travels with its row: an estimate's mode (and its
+      // companion baselines) belongs to the moving item, not the position
+      if (
+        fromInternalFieldStore.kind === "value" &&
+        toInternalFieldStore.kind === "value"
+      ) {
+        copyMetaState(fromInternalFieldStore, toInternalFieldStore);
+      }
 
       // If both stores are arrays, copy array-specific state
       if (

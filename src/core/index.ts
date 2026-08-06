@@ -16,11 +16,12 @@ export {
 } from "./derivation/row-scope";
 export { encodeDirty } from "./codec/encode-dirty";
 export type { EncodedDirty, EncodeDirtyOptions } from "./codec/encode-dirty";
-export { buildMeta } from "./meta/build-meta";
+export { buildMeta, rebaseMeta } from "./meta/build-meta";
 export {
   encodeCompanion,
   hasDirtyMeta,
   metaSuffix,
+  withRowCompanions,
 } from "./meta/encode-companion";
 export { inferControl } from "./control";
 export type { ControlKind } from "./control";

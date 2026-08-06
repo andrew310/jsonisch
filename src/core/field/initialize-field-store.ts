@@ -1,6 +1,7 @@
 import { inferControl } from "../control";
 import { buildRowDerivation } from "../derivation/build-derivation";
 import { createId, createSignal } from "../framework";
+import { buildMeta } from "../meta/build-meta";
 import {
   containerPresence,
   isSafeKey,
@@ -108,12 +109,17 @@ export function initializeFieldStore(
     objectStore.startInput = createSignal(objectInput);
     objectStore.input = createSignal(objectInput);
 
-    // An ARRAY ITEM (an object addressed by an index) is a derivation scope
-    // of its own: wire its formula fields here, in the walk, so a row
-    // created by an insert or a whole-array write derives exactly like one
-    // the record loaded with. No-op without an injected calc engine, and
-    // for the form root (path `[]`) / a plain nested object.
+    // An ARRAY ITEM (an object addressed by an index) is a meta AND
+    // derivation scope of its own: wire both here, in the walk, so a row
+    // created by an insert or a whole-array write behaves exactly like one
+    // the record loaded with. Meta FIRST, exactly as at the root — the
+    // estimate pin in derivation reuses the mode signal the meta pass
+    // creates. The row's own object value carries its companions as flat
+    // sibling keys (`<key>Source`/`<key>Hybrid`), so it IS the companion
+    // bag. Derivation is a no-op without an injected calc engine; both are
+    // skipped for the form root (path `[]`) and plain nested objects.
     if (typeof path[path.length - 1] === "number") {
+      buildMeta(objectStore as InternalObjectStore, initialInput);
       buildRowDerivation(internalFormStore, objectStore as InternalObjectStore);
     }
     return;

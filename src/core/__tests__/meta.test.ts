@@ -1,5 +1,7 @@
 import { describe, expect, test } from "vitest";
 
+import { applyBaseline } from "../../methods/apply-baseline";
+import { insert, move } from "../../methods/array-ops";
 import { getDirtyInput } from "../../methods/get-dirty-input";
 import { pickDirty } from "../../methods/pick-dirty";
 import { reset } from "../../methods/reset";
@@ -373,6 +375,304 @@ describe("meta channel", () => {
       setInput(store, ["a"], 50);
       expect(fee.derived!.value.value).toBe(1234);
       expect(fee.formulaValue!.value).toStrictEqual({ value: 100, error: null });
+    });
+  });
+
+  describe("row companions", () => {
+    /**
+     * A row's companions are FLAT SIBLING KEYS inside the row object
+     * (`{ fee: 5, feeSource: {…} }`) — the same convention as the root, one
+     * scope down. The row object IS the companion bag.
+     */
+    const rowSchema = (extra: Record<string, JsonSchema> = {}) =>
+      objectSchema({
+        a: { type: "number" },
+        rows: {
+          type: "array",
+          items: objectSchema({
+            id: { type: "string" },
+            a: { type: "number" },
+            fee: estimateField("double"),
+            ...extra,
+          }),
+        },
+      });
+
+    test("should seed a row estimate's mode from the row's own companion", () => {
+      const store = createFormStore({
+        schema: rowSchema(),
+        initialInput: {
+          a: 1,
+          rows: [
+            {
+              id: "r1",
+              a: 10,
+              fee: 999,
+              feeSource: { mode: "calculated", manualValue: "999" },
+            },
+            { id: "r2", a: 3, fee: 7, feeSource: { mode: "manual", manualValue: "7" } },
+          ],
+        },
+        calcEngine: makeEngine(doubleA()),
+      });
+
+      const calculated = getValueStore(store, ["rows", 0, "fee"]);
+      expect(calculated.mode?.value).toBe("formula");
+      // Meta was built BEFORE the row's derivation graph, so the pin holds
+      expect(calculated.derived!.value).toStrictEqual({ value: 20, error: null });
+
+      const manual = getValueStore(store, ["rows", 1, "fee"]);
+      expect(manual.mode?.value).toBe("estimate");
+      expect(manual.derived!.value).toStrictEqual({ value: 7, error: null });
+    });
+
+    test("should default a companion-less row field to estimate, like root", () => {
+      const store = createFormStore({
+        schema: rowSchema(),
+        initialInput: { a: 1, rows: [{ id: "r1", a: 10, fee: 5 }, { id: "r2", a: 4 }] },
+        calcEngine: makeEngine(doubleA()),
+      });
+      expect(getValueStore(store, ["rows", 0, "fee"]).mode?.value).toBe("estimate");
+      // An EMPTY estimate still falls through to the formula (LOS-515)
+      const empty = getValueStore(store, ["rows", 1, "fee"]);
+      expect(empty.mode?.value).toBe("estimate");
+      expect(empty.derived!.value).toStrictEqual({ value: 8, error: null });
+    });
+
+    test("should decode a row amount-or-percent field's entry state", () => {
+      const store = createFormStore({
+        schema: objectSchema({
+          rows: {
+            type: "array",
+            items: objectSchema({
+              id: { type: "string" },
+              points: hybridField({ "x-hybrid-default-denominator": "purchasePrice" }),
+            }),
+          },
+        }),
+        initialInput: {
+          rows: [
+            {
+              id: "r1",
+              points: "5000",
+              pointsHybrid: { mode: "bps", denominator: "rowBudget" },
+            },
+          ],
+        },
+      });
+      const meta = getValueStore(store, ["rows", 0, "points"]).meta;
+      if (meta?.family !== "hybrid") throw new Error("expected hybrid meta");
+      expect(meta.entryMode.value).toBe("percent");
+      expect(meta.percentBasis.value).toBe("rowBudget");
+    });
+
+    test("setMode should flip a row field and seed from its ROW's formula result", () => {
+      const store = createFormStore({
+        schema: rowSchema(),
+        initialInput: {
+          a: 1,
+          rows: [{ id: "r1", a: 10, fee: 999, feeSource: { mode: "calculated" } }],
+        },
+        calcEngine: makeEngine(doubleA()),
+      });
+      const fee = getValueStore(store, ["rows", 0, "fee"]);
+
+      setMode(store, ["rows", 0, "fee"], "estimate", { now: "T1" });
+      expect(fee.mode?.value).toBe("estimate");
+      // Seeded from the ROW's own `a` (10), not the document's (1)
+      expect(fee.input.value).toBe(20);
+      expect(fee.isDirty.value).toBe(true);
+
+      setMode(store, ["rows", 0, "fee"], "formula", { now: "T2" });
+      expect(fee.mode?.value).toBe("formula");
+      // The estimate typed this session is preserved as the manual value
+      expect(fee.meta?.family === "source" && fee.meta.manualValue.value).toBe(20);
+    });
+
+    test("setMode should still throw for a row field with no meta channel", () => {
+      const store = createFormStore({
+        schema: rowSchema(),
+        initialInput: { a: 1, rows: [{ id: "r1", a: 10 }] },
+        calcEngine: makeEngine(doubleA()),
+      });
+      expect(() => setMode(store, ["rows", 0, "a"], "formula")).toThrow(
+        /estimate field/,
+      );
+    });
+
+    test("should serialize a row companion INSIDE its own row object", () => {
+      const store = createFormStore({
+        schema: rowSchema(),
+        initialInput: {
+          a: 1,
+          rows: [
+            { id: "r1", a: 10, fee: 1234, feeSource: { mode: "manual", manualValue: "1234" } },
+            { id: "r2", a: 3, fee: 6, feeSource: { mode: "manual", manualValue: "6" } },
+          ],
+        },
+        calcEngine: makeEngine(doubleA()),
+      });
+      expect(getDirtyInput(store)).toBe(undefined);
+
+      setMode(store, ["rows", 0, "fee"], "formula", { now: "T1" });
+
+      // The array is atomic — the whole array rides, but only the flipped
+      // row carries a companion (the server merges row `data` per key, so
+      // an untouched row must not restate meta it did not change)
+      expect(getDirtyInput(store)).toStrictEqual({
+        rows: [
+          {
+            id: "r1",
+            a: 10,
+            fee: 1234,
+            feeSource: {
+              mode: "calculated",
+              manualValue: "1234",
+              lastFlippedAt: "T1",
+            },
+          },
+          { id: "r2", a: 3, fee: 6 },
+        ],
+      });
+      // A row-only mode flip must enable Save
+      expect(store.aggregates.isDirty.value).toBe(true);
+    });
+
+    test("should append row companions in pickDirty even though the value lacks them", () => {
+      const store = createFormStore({
+        schema: rowSchema(),
+        initialInput: {
+          a: 1,
+          rows: [{ id: "r1", a: 10, fee: 1234, feeSource: { mode: "manual" } }],
+        },
+        calcEngine: makeEngine(doubleA()),
+      });
+      setMode(store, ["rows", 0, "fee"], "formula", { now: "T1" });
+      expect(
+        pickDirty(store, { a: 1, rows: [{ id: "r1", a: 10, fee: 1234 }] }),
+      ).toStrictEqual({
+        rows: [
+          {
+            id: "r1",
+            a: 10,
+            fee: 1234,
+            feeSource: { mode: "calculated", manualValue: null, lastFlippedAt: "T1" },
+          },
+        ],
+      });
+    });
+
+    test("an estimate value edit inside a row should carry its companion", () => {
+      const store = createFormStore({
+        schema: rowSchema(),
+        initialInput: {
+          a: 1,
+          rows: [{ id: "r1", a: 10, fee: 1234, feeSource: { mode: "manual", manualValue: "1234" } }],
+        },
+        calcEngine: makeEngine(doubleA()),
+      });
+      setInput(store, ["rows", 0, "fee"], "1500");
+      expect(getDirtyInput(store)).toStrictEqual({
+        rows: [
+          {
+            id: "r1",
+            a: 10,
+            fee: "1500",
+            feeSource: { mode: "manual", manualValue: "1500" },
+          },
+        ],
+      });
+    });
+
+    test("reset should restore a row's mode to its decode baseline", () => {
+      const store = createFormStore({
+        schema: rowSchema(),
+        initialInput: {
+          a: 1,
+          rows: [{ id: "r1", a: 10, fee: 1234, feeSource: { mode: "manual", manualValue: "1234" } }],
+        },
+        calcEngine: makeEngine(doubleA()),
+      });
+      setMode(store, ["rows", 0, "fee"], "formula", { now: "T1" });
+      expect(store.aggregates.isDirty.value).toBe(true);
+
+      reset(store);
+
+      const fee = getValueStore(store, ["rows", 0, "fee"]);
+      expect(fee.mode?.value).toBe("estimate");
+      expect(fee.meta?.isDirty.value).toBe(false);
+      expect(getDirtyInput(store)).toBe(undefined);
+    });
+
+    test("applyBaseline should adopt a clean row's fresh companion and keep a flipped one", () => {
+      const store = createFormStore({
+        schema: rowSchema(),
+        initialInput: {
+          a: 1,
+          rows: [
+            { id: "r1", a: 10, fee: 1, feeSource: { mode: "manual" } },
+            { id: "r2", a: 20, fee: 2, feeSource: { mode: "manual" } },
+          ],
+        },
+        calcEngine: makeEngine(doubleA()),
+      });
+      // Row 2 has an in-session flip; row 1 is clean
+      setMode(store, ["rows", 1, "fee"], "formula", { now: "T1" });
+
+      applyBaseline(store, {
+        data: {
+          a: 1,
+          rows: [
+            { id: "r1", a: 10, fee: 5, feeSource: { mode: "calculated" } },
+            { id: "r2", a: 20, fee: 2, feeSource: { mode: "manual" } },
+          ],
+        },
+      });
+
+      // Clean row adopts the server's mode
+      expect(getValueStore(store, ["rows", 0, "fee"]).mode?.value).toBe("formula");
+      // Flipped row keeps the user's in-flight flip
+      const flipped = getValueStore(store, ["rows", 1, "fee"]);
+      expect(flipped.mode?.value).toBe("formula");
+      expect(flipped.meta?.isDirty.value).toBe(true);
+
+      // A later reset returns to the NEW baseline
+      reset(store);
+      expect(getValueStore(store, ["rows", 0, "fee"]).mode?.value).toBe("formula");
+      expect(getValueStore(store, ["rows", 1, "fee"]).mode?.value).toBe("estimate");
+    });
+
+    test("a row inserted after store init should get its meta channel", () => {
+      const store = createFormStore({
+        schema: rowSchema(),
+        initialInput: { a: 1, rows: [] },
+        calcEngine: makeEngine(doubleA()),
+      });
+      insert(store, ["rows"], {
+        initialInput: { id: "r2", a: 4, fee: 9, feeSource: { mode: "calculated" } },
+      });
+      const fee = getValueStore(store, ["rows", 0, "fee"]);
+      expect(fee.mode?.value).toBe("formula");
+      expect(fee.derived!.value).toStrictEqual({ value: 8, error: null });
+      expect(() => setMode(store, ["rows", 0, "fee"], "estimate", { now: "T1" })).not.toThrow();
+      expect(fee.mode?.value).toBe("estimate");
+    });
+
+    test("a moved row should take its mode with it", () => {
+      const store = createFormStore({
+        schema: rowSchema(),
+        initialInput: {
+          a: 1,
+          rows: [
+            { id: "r1", a: 10, fee: 1, feeSource: { mode: "calculated" } },
+            { id: "r2", a: 20, fee: 2, feeSource: { mode: "manual" } },
+          ],
+        },
+        calcEngine: makeEngine(doubleA()),
+      });
+      move(store, ["rows"], 0, 1);
+      expect(getValueStore(store, ["rows", 0, "fee"]).mode?.value).toBe("estimate");
+      expect(getValueStore(store, ["rows", 1, "fee"]).mode?.value).toBe("formula");
     });
   });
 

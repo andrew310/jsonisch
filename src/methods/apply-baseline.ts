@@ -54,8 +54,10 @@ export function applyBaseline(
 
   batch(() => {
     untrack(() => {
-      // Reset-target half first, then the live rebase, then meta (its
-      // companion-less mode heuristic reads the rebased baseline value)
+      // Reset-target half first, then the live rebase, then ROOT meta (its
+      // companion-less mode heuristic reads the rebased baseline value).
+      // Row meta rebases inside `rebaseFieldBaseline`, from each fresh row
+      // object's own companion keys.
       setInitialFieldInput(internalFormStore, internalFormStore, decoded);
       rebaseFieldBaseline(internalFormStore, internalFormStore, decoded);
       rebaseMeta(internalFormStore, companions);

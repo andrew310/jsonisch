@@ -1,9 +1,9 @@
 import { isEmptyish } from "../dirty";
 import type {
   HybridCompanion,
+  InternalFieldStore,
   InternalHybridMeta,
   InternalMetaStore,
-  InternalObjectStore,
   InternalSourceMeta,
   InternalValueStore,
   SourceCompanion,
@@ -76,17 +76,93 @@ function encodeHybrid(meta: InternalHybridMeta): HybridCompanion {
 }
 
 /**
- * Returns whether any root-level field's meta channel is dirty — the meta
- * side of the form's dirty aggregate (a mode flip with an unchanged value
- * must still enable Save, the janska hidden-descriptor behavior this
- * replaces).
+ * Returns whether any field's meta channel in the subtree is dirty — the
+ * meta side of the form's dirty aggregate (a mode flip with an unchanged
+ * value must still enable Save, the janska hidden-descriptor behavior this
+ * replaces). Reaches into array rows (LOS-602): a row estimate's mode flip
+ * is a real change, and nothing else in the store records it.
+ *
+ * Reads array `items` (not the raw `children`, which may hold stale stores
+ * past the end after a shrink), so a reactive caller subscribes to
+ * structural changes like `walkFieldStore` does.
+ *
+ * @param store The field store to inspect.
+ *
+ * @returns Whether any meta channel in the subtree is dirty.
  */
-export function hasDirtyMeta(store: InternalObjectStore): boolean {
-  for (const key in store.children) {
-    const child = store.children[key];
-    if (child.kind === "value" && child.meta?.isDirty.value) {
-      return true;
+export function hasDirtyMeta(store: InternalFieldStore): boolean {
+  if (store.kind === "value") {
+    return Boolean(store.meta?.isDirty.value);
+  }
+  if (store.kind === "array") {
+    const length = store.items.value.length;
+    for (let index = 0; index < length; index++) {
+      const child = store.children[index];
+      if (child && hasDirtyMeta(child)) return true;
     }
+    return false;
+  }
+  for (const key in store.children) {
+    if (hasDirtyMeta(store.children[key])) return true;
   }
   return false;
+}
+
+/**
+ * Returns `value` with the dirty companions of `store`'s subtree merged in
+ * as flat sibling keys INSIDE their own row object — the row half of the
+ * companion wire (LOS-602):
+ *
+ * ```jsonc
+ * // dirty payload for a formula/estimate field inside an assets row
+ * { "assets": [{ "id": "a1", "totalProjectBudget": 500000,
+ *                "totalProjectBudgetSource": { "mode": "manual", … } }] }
+ * ```
+ *
+ * The same convention as the root (`<key>Source`/`<key>Hybrid` next to
+ * `<key>`), just scoped to the row object — which is what the row-partition
+ * save path already reads, and what LOS-573's `{value, source}` nesting
+ * will fold away in one place.
+ *
+ * Copies only the branches that gain a key; `value` is never mutated, so it
+ * is safe over a caller-supplied value (`pickDirty`).
+ *
+ * @param store The field store the value was produced from.
+ * @param value The value to merge companions into.
+ *
+ * @returns The value with row companions merged in.
+ */
+export function withRowCompanions(
+  store: InternalFieldStore | undefined,
+  value: unknown,
+): unknown {
+  if (!store || !hasDirtyMeta(store)) return value;
+
+  if (store.kind === "array" && Array.isArray(value)) {
+    return value.map((item, index) =>
+      withRowCompanions(store.children[index], item),
+    );
+  }
+
+  if (
+    store.kind === "object" &&
+    value !== null &&
+    typeof value === "object" &&
+    !Array.isArray(value)
+  ) {
+    const row = { ...(value as Record<string, unknown>) };
+    for (const key in store.children) {
+      const child = store.children[key];
+      if (child.kind === "value") {
+        if (child.meta?.isDirty.value) {
+          row[`${key}${metaSuffix(child.meta)}`] = encodeCompanion(child);
+        }
+      } else if (Object.prototype.hasOwnProperty.call(row, key)) {
+        row[key] = withRowCompanions(child, row[key]);
+      }
+    }
+    return row;
+  }
+
+  return value;
 }

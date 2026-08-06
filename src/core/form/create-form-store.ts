@@ -62,8 +62,10 @@ export function createFormStore(config: FormConfig): InternalFormStore {
     [],
   );
 
-  // Build the meta channel (companion decode → mode/entry state) BEFORE the
-  // derivation graph, which reuses the estimate mode signal for its pin
+  // Build the ROOT meta channel (companion decode → mode/entry state)
+  // BEFORE the root derivation graph, which reuses the estimate mode signal
+  // for its pin. Each array row's meta channel was already built by the
+  // walk itself, from the row's own companions, ahead of that row's graph.
   buildMeta(store as InternalFormStore, config.companions);
 
   // Build the ROOT derivation graph over the walked tree (`x-formula`

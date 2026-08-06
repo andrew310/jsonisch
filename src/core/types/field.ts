@@ -237,8 +237,10 @@ export interface InternalValueStore extends InternalBaseStore {
    * The estimate/formula mode of an estimate-control field. `estimate`
    * holds the manual value in `input`; `formula` computes. Decoded from
    * the `<key>Source` companion at store init (`manual` → `estimate`,
-   * `calculated` → `formula`); with no companion the value-presence
-   * heuristic decides — matching the server recompute's own defaulting.
+   * `calculated` → `formula`); with no companion the field opens as
+   * `estimate` (manual-first) and the empty-estimate fall-through keeps
+   * dependents on the formula. Present at any depth — a row estimate
+   * decodes from the companion keys of its own row object (LOS-602).
    * Write via `setMode` (the flip API), not directly: a raw write skips
    * value seeding and the flip timestamp.
    */
@@ -247,8 +249,9 @@ export interface InternalValueStore extends InternalBaseStore {
    * The companion meta state of the field (`<key>Source` mode state on
    * estimate fields, `<key>Hybrid` entry state on amount-or-percent
    * fields): dirty-tracked and serialized by core, never rendered as a
-   * field. Root-level fields only — a row's companions ride the row
-   * partition save path, not the form store.
+   * field. Built for root-level fields from the decoded companion bag and
+   * for array-item fields from their own row object's companion keys — the
+   * same flat convention, one scope down.
    */
   meta?: InternalMetaStore | undefined;
   /**

@@ -3,6 +3,7 @@ import {
   encodeCompanion,
   hasDirtyMeta,
   metaSuffix,
+  withRowCompanions,
 } from "../core/meta/encode-companion";
 import type { InternalFieldStore } from "../core/types";
 import { type FormRef, internalOf } from "./form-ref";
@@ -60,7 +61,8 @@ function pickFieldValue(
       // Own-property check — a declared key like "toString" must never
       // match an inherited prototype member of the supplied value
       if (
-        getFieldBool(child, "isDirty") &&
+        (getFieldBool(child, "isDirty") ||
+          (child.kind !== "value" && hasDirtyMeta(child))) &&
         Object.prototype.hasOwnProperty.call(value, key)
       ) {
         result[key] = pickFieldValue(
@@ -75,6 +77,13 @@ function pickFieldValue(
       }
     }
     return result;
+  }
+
+  // An array is atomic, but its rows' dirty companions are appended into
+  // the row objects they belong to — meta state never appears in the
+  // supplied value either
+  if (internalFieldStore.kind === "array") {
+    return withRowCompanions(internalFieldStore, value);
   }
 
   // Atomic or shape-diverging — return as-is

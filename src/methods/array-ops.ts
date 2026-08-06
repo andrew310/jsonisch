@@ -207,14 +207,17 @@ export function move(
       newItems.splice(to, 0, newItems.splice(from, 1)[0]);
       internalArrayStore.items.value = newItems;
 
-      // Park the moving item's state in a temporary store
+      // Park the moving item's state in a temporary store. It is given the
+      // moving item's own path so the walk shapes it as an ARRAY ITEM — a
+      // parking store without the item's meta channel would silently drop
+      // the row's estimate/entry state on the way through.
       const tempStore = {} as InternalFieldStore;
       initializeFieldStore(
         internalFormStore,
         tempStore,
         internalArrayStore.itemSchema,
         undefined,
-        [],
+        [...internalArrayStore.path, from],
       );
       copyItemState(
         internalFormStore,

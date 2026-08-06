@@ -1,4 +1,5 @@
 import { batch, createId } from "../framework";
+import { buildMeta } from "../meta/build-meta";
 import {
   containerPresence,
   readOwn,
@@ -97,6 +98,18 @@ export function resetItemState(
             readOwn(input, key),
             keepStart,
           );
+        }
+
+        // An array item reused for a DIFFERENT row (a shrink-then-regrow, a
+        // grown baseline row) must adopt the new row's companions too: its
+        // meta channel is re-seeded from the row's own object value, the
+        // same bag the walk built it from. Runs after the value reset, like
+        // the meta pass does everywhere else.
+        if (
+          typeof internalFieldStore.path[internalFieldStore.path.length - 1] ===
+          "number"
+        ) {
+          buildMeta(internalFieldStore, input);
         }
       }
     } else {

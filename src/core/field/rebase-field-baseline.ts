@@ -1,5 +1,6 @@
 import { isPresenceEqual, isSemanticEqual } from "../dirty";
 import { createId } from "../framework";
+import { rebaseMeta } from "../meta/build-meta";
 import { containerPresence, readOwn, resolveValueInput } from "../schema-utils";
 import type {
   InternalArrayStore,
@@ -50,6 +51,18 @@ export function rebaseFieldBaseline(
         internalFieldStore.children[key],
         readOwn(input, key),
       );
+    }
+
+    // An array item rebases its meta channel from its OWN fresh row object
+    // (companions ride it as flat sibling keys) — the row twin of the root
+    // `rebaseMeta` call in `applyBaseline`, and like it, run AFTER the value
+    // rebase. Clean mode/entry state adopts the server's, an in-session flip
+    // survives and re-diffs against the new baseline.
+    if (
+      typeof internalFieldStore.path[internalFieldStore.path.length - 1] ===
+      "number"
+    ) {
+      rebaseMeta(internalFieldStore, input);
     }
 
     internalFieldStore.isDirty.value = computeContainerDirty(
