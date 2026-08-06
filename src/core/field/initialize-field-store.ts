@@ -1,4 +1,5 @@
 import { inferControl } from "../control";
+import { buildRowDerivation } from "../derivation/build-derivation";
 import { createId, createSignal } from "../framework";
 import {
   containerPresence,
@@ -106,6 +107,15 @@ export function initializeFieldStore(
     objectStore.initialInput = createSignal(objectInput);
     objectStore.startInput = createSignal(objectInput);
     objectStore.input = createSignal(objectInput);
+
+    // An ARRAY ITEM (an object addressed by an index) is a derivation scope
+    // of its own: wire its formula fields here, in the walk, so a row
+    // created by an insert or a whole-array write derives exactly like one
+    // the record loaded with. No-op without an injected calc engine, and
+    // for the form root (path `[]`) / a plain nested object.
+    if (typeof path[path.length - 1] === "number") {
+      buildRowDerivation(internalFormStore, objectStore as InternalObjectStore);
+    }
     return;
   }
 

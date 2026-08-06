@@ -1,6 +1,7 @@
 import { getFieldInput } from "../field/get-field-input";
 import { readOwn } from "../schema-utils";
-import type { InternalFieldStore, InternalFormStore } from "../types";
+import type { InternalFieldStore, InternalFormStore, Path } from "../types";
+import { findRowStore, resolveRowScopeValue } from "./row-scope";
 
 /**
  * Resolves a single scalar key through the canonical scope precedence —
@@ -38,4 +39,36 @@ export function resolveScopeValue(
   return formValue === undefined
     ? readOwn(internalFormStore.offFormValues.value, key)
     : formValue;
+}
+
+/**
+ * Resolves a single scalar key in the scope of the field at `path` — the
+ * path-aware sibling of `resolveScopeValue`, and the read a widget owned by
+ * a field should use:
+ *
+ * - inside an array row, the ROW's scope (live siblings in the same row →
+ *   the canonical row from `offFormValues` matched by `id` → the parent
+ *   record handle under `loan`), so a per-row formula's inputs are ITS
+ *   row's values;
+ * - anywhere else, the document scope (`resolveScopeValue`).
+ *
+ * The same precedence the derivation graph evaluates the field's own
+ * formula in, so a widget can never display an input the value was not
+ * computed from.
+ *
+ * @param internalFormStore The form store.
+ * @param path The path of the field whose scope to resolve in.
+ * @param key The identifier to resolve.
+ *
+ * @returns The resolved value, or `undefined`.
+ */
+export function resolveScopeValueAt(
+  internalFormStore: InternalFormStore,
+  path: Path,
+  key: string,
+): unknown {
+  const rowStore = findRowStore(internalFormStore, path);
+  return rowStore
+    ? resolveRowScopeValue(internalFormStore, rowStore, key)
+    : resolveScopeValue(internalFormStore, key);
 }

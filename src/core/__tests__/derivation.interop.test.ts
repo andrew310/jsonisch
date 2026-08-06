@@ -107,6 +107,49 @@ describe("derivation with the real @rwa/formulas engine", () => {
     expect(getValueStore(store, ["good"]).derived!.value.value).toBe(20);
   });
 
+  test("should derive a per-row formula against its row + the loan handle", () => {
+    // The shape a relation/asset tray renders (LOS-596): the row formula is
+    // the SAME machinery as a root one, only its scope differs
+    const store = createFormStore({
+      schema: objectSchema({
+        assets: {
+          type: "array",
+          items: objectSchema({
+            id: { type: "string" },
+            estimatedAiv: { type: "number" },
+            allocatedPercent: formulaField("estimatedAiv / loan[commitment]"),
+            netValue: formulaField("estimatedAiv - liens"),
+          }),
+        },
+      }),
+      initialInput: { assets: [{ id: "a1", estimatedAiv: 300_000 }] },
+      offFormValues: {
+        loan: { commitment: 1_200_000 },
+        // `liens` is a core column the write model never carries — it
+        // resolves from the canonical row
+        assets: [{ id: "a1", estimatedAiv: 1, liens: 50_000 }],
+      },
+      calcEngine: engine,
+    });
+    expect(
+      getValueStore(store, ["assets", 0, "allocatedPercent"]).derived!.value
+        .value,
+    ).toBeCloseTo(0.25, 4);
+    expect(
+      getValueStore(store, ["assets", 0, "netValue"]).derived!.value.value,
+    ).toBe(250_000);
+
+    // A live edit in the row wins over the canonical value
+    setInput(store, ["assets", 0, "estimatedAiv"], 600_000);
+    expect(
+      getValueStore(store, ["assets", 0, "allocatedPercent"]).derived!.value
+        .value,
+    ).toBeCloseTo(0.5, 4);
+    expect(
+      getValueStore(store, ["assets", 0, "netValue"]).derived!.value.value,
+    ).toBe(550_000);
+  });
+
   test("should flag an unparseable formula", () => {
     const store = createFormStore({
       schema: objectSchema({

@@ -9,7 +9,8 @@ import { resolveConditionals } from "./resolve-conditionals";
  * Builds conditional visibility over the walked tree: every root-level
  * field gated by an `allOf` `if/then/else` block gets a `visible` computed
  * signal over the watched field's resolved value. Root-level only — the
- * same boundary as derivation and the meta channel.
+ * same boundary as the meta channel (derivation itself reaches into rows,
+ * LOS-596).
  *
  * Visibility gates RENDERING only: a hidden field keeps its state, stays
  * in the dirty diff, and rides the payload (the spec's "visibleWhen

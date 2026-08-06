@@ -40,9 +40,10 @@ function readCompanion(
  * (manual-first, LOS-461) — the empty-estimate fall-through in derivation
  * keeps dependents on the formula until a real estimate is typed.
  *
- * Root-level only, the same boundary as derivation: janska's stage form is
- * flat, and row-level companions ride the row-partition save path, not the
- * form store.
+ * Root-level only: janska's stage form is flat, and row-level companions
+ * ride the row-partition save path, not the form store. (Derivation itself
+ * reaches into rows — LOS-596 — so a row estimate computes but has no mode
+ * channel to pin with.)
  */
 export function buildMeta(
   internalFormStore: InternalFormStore,
