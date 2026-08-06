@@ -107,8 +107,8 @@ export interface InternalBaseStore {
   /**
    * The conditional-visibility rule of the field, resolved once at store
    * init from the root schema's `allOf` `if/then/else` blocks. Root-level
-   * fields only (the same boundary as derivation); absent on ungated
-   * fields.
+   * fields only (derivation reaches into rows, visibility does not yet);
+   * absent on ungated fields.
    */
   visibleWhen?: VisibleWhen | undefined;
   /**
@@ -217,8 +217,10 @@ export interface InternalValueStore extends InternalBaseStore {
    * deps' input signals + `offFormValues`, resolved through the single
    * scope path — mode-aware: an estimate pin holds the field's own input.
    * This is what dependents chain through and what the field displays.
-   * Present only on root-level fields with a parseable derivation setup
-   * (`x-formula` + injected calc engine). NEVER written back into `input`
+   * Present on any field with a parseable derivation setup (`x-formula` +
+   * injected calc engine) — root-level fields resolve in the document's
+   * scope, fields inside an array item in their ROW's (LOS-596). NEVER
+   * written back into `input`
    * — derived values are outputs, excluded from dirty and payload by
    * construction.
    */
@@ -245,7 +247,8 @@ export interface InternalValueStore extends InternalBaseStore {
    * The companion meta state of the field (`<key>Source` mode state on
    * estimate fields, `<key>Hybrid` entry state on amount-or-percent
    * fields): dirty-tracked and serialized by core, never rendered as a
-   * field. Root-level fields only (the same boundary as derivation).
+   * field. Root-level fields only — a row's companions ride the row
+   * partition save path, not the form store.
    */
   meta?: InternalMetaStore | undefined;
   /**

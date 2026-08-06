@@ -153,6 +153,13 @@ export interface InternalFormStore extends InternalObjectStore {
    */
   validator: FormValidator | undefined;
   /**
+   * The injected calc engine, kept on the store so the WALK can wire a
+   * row's derivation graph: an array item created after store init (an
+   * insert, a whole-array write) must derive exactly like one the record
+   * loaded with.
+   */
+  calcEngine: CalcEngine | undefined;
+  /**
    * The validation mode of the form.
    */
   validate: ValidationMode;

@@ -39,6 +39,10 @@ export function createFormStore(config: FormConfig): InternalFormStore {
 
   // Set validation config (validator injected pre-compiled, once per schema)
   store.validator = config.validator;
+  // The engine must sit on the store BEFORE the walk: the walk wires each
+  // array row's derivation graph as it creates the row (see
+  // `buildRowDerivation`)
+  store.calcEngine = config.calcEngine;
   store.validate = config.validate ?? "submit";
   store.revalidate = config.revalidate ?? "input";
   store.validators = 0;
@@ -62,8 +66,9 @@ export function createFormStore(config: FormConfig): InternalFormStore {
   // derivation graph, which reuses the estimate mode signal for its pin
   buildMeta(store as InternalFormStore, config.companions);
 
-  // Build the derivation graph over the walked tree (root-level `x-formula`
-  // fields become computed signals; no-op without an injected calc engine)
+  // Build the ROOT derivation graph over the walked tree (`x-formula`
+  // fields become computed signals; no-op without an injected calc engine).
+  // Each array row's graph was already wired by the walk itself.
   buildDerivation(store as InternalFormStore, config.calcEngine);
 
   // Build conditional visibility AFTER derivation — a WHEN watching a

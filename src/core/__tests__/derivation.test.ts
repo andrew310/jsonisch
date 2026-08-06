@@ -2,10 +2,12 @@ import { describe, expect, test, vi } from "vitest";
 import type { Mock } from "vitest";
 
 import { applyBaseline } from "../../methods/apply-baseline";
+import { insert } from "../../methods/array-ops";
 import { getDirtyPaths } from "../../methods/get-dirty-paths";
 import { setErrors } from "../../methods/errors";
 import { setInput } from "../../methods/set-input";
 import { setOffFormValues } from "../../methods/set-off-form-values";
+import { resolveScopeValueAt } from "../derivation/resolve-scope-value";
 import { getFieldBool } from "../field/get-field-bool";
 import { batch } from "../framework";
 import { createFormStore } from "../form/create-form-store";
@@ -806,8 +808,7 @@ describe("derivation", () => {
       expect(total.input.value).toBe(9);
     });
 
-    test("should not derive a nested (non-root) formula field in this slice", () => {
-      const exprs = { sum: stub(["a"], (s) => s.a) };
+    test("should walk a row's formula fields as plain value leaves too", () => {
       const store = createFormStore({
         schema: objectSchema({
           rows: {
@@ -816,9 +817,310 @@ describe("derivation", () => {
           },
         }),
         initialInput: { rows: [{ perRow: 7 }] },
+      });
+      const perRow = getValueStore(store, ["rows", 0, "perRow"]);
+      expect(perRow.derived).toBe(undefined);
+      expect(perRow.input.value).toBe(7);
+    });
+  });
+
+  describe("row-scoped derivation (LOS-596)", () => {
+    // A row's scope is its own record: live siblings win, the canonical row
+    // fills, the parent handle rides under `loan`.
+    const rowSchema = (extra?: Record<string, JsonSchema>): JsonSchema =>
+      objectSchema({
+        assets: {
+          type: "array",
+          items: objectSchema({
+            id: { type: "string" },
+            landValue: { type: "number" },
+            buildingValue: { type: "number" },
+            rowTotal: formulaField("rowSum"),
+            ...extra,
+          }),
+        },
+      });
+
+    function rowExprs() {
+      return {
+        rowSum: stub(
+          ["landValue", "buildingValue"],
+          (s) => num(s.landValue) + num(s.buildingValue),
+        ),
+      };
+    }
+
+    test("should derive a formula inside an array item from its own row", () => {
+      const store = createFormStore({
+        schema: rowSchema(),
+        initialInput: {
+          assets: [
+            { id: "a1", landValue: 100, buildingValue: 50 },
+            { id: "a2", landValue: 7, buildingValue: 3 },
+          ],
+        },
+        calcEngine: makeEngine(rowExprs()),
+      });
+      expect(
+        getValueStore(store, ["assets", 0, "rowTotal"]).derived!.value,
+      ).toStrictEqual({ value: 150, error: null });
+      // Each row computes from ITS OWN siblings — never row 0's
+      expect(
+        getValueStore(store, ["assets", 1, "rowTotal"]).derived!.value.value,
+      ).toBe(10);
+    });
+
+    test("should recompute a row when a sibling in the SAME row is edited", () => {
+      const exprs = rowExprs();
+      const store = createFormStore({
+        schema: rowSchema(),
+        initialInput: {
+          assets: [
+            { id: "a1", landValue: 100, buildingValue: 50 },
+            { id: "a2", landValue: 7, buildingValue: 3 },
+          ],
+        },
         calcEngine: makeEngine(exprs),
       });
-      expect(getValueStore(store, ["rows", 0, "perRow"]).derived).toBe(undefined);
+      const first = getValueStore(store, ["assets", 0, "rowTotal"]);
+      const second = getValueStore(store, ["assets", 1, "rowTotal"]);
+      expect(first.derived!.value.value).toBe(150);
+      expect(second.derived!.value.value).toBe(10);
+
+      setInput(store, ["assets", 0, "landValue"], 900);
+      expect(first.derived!.value.value).toBe(950);
+      // …and the neighbour row stays put (its computed was never invalidated)
+      const calls = exprs.rowSum.fn.mock.calls.length;
+      expect(second.derived!.value.value).toBe(10);
+      expect(exprs.rowSum.fn.mock.calls.length).toBe(calls);
+    });
+
+    test("should fill unedited fields from the canonical row, matched by id", () => {
+      const store = createFormStore({
+        // The write model holds only `landValue`; `buildingValue` is a core
+        // column the form never carries
+        schema: objectSchema({
+          assets: {
+            type: "array",
+            items: objectSchema({
+              id: { type: "string" },
+              landValue: { type: "number" },
+              rowTotal: formulaField("rowSum"),
+            }),
+          },
+        }),
+        initialInput: { assets: [{ id: "a2" }, { id: "a1", landValue: 100 }] },
+        offFormValues: {
+          assets: [
+            { id: "a1", landValue: 1, buildingValue: 50 },
+            { id: "a2", landValue: 5, buildingValue: 9 },
+          ],
+        },
+        calcEngine: makeEngine(rowExprs()),
+      });
+      // Row order is NOT identity: `a1` sits at index 1 in the form and at
+      // index 0 in the canonical rows
+      expect(
+        getValueStore(store, ["assets", 1, "rowTotal"]).derived!.value.value,
+      ).toBe(150);
+      // An unedited row resolves entirely from its canonical record
+      expect(
+        getValueStore(store, ["assets", 0, "rowTotal"]).derived!.value.value,
+      ).toBe(14);
+    });
+
+    test("should resolve the parent record handle under `loan`", () => {
+      const exprs = {
+        share: stub(
+          ["landValue", "loan"],
+          (s) =>
+            num(s.landValue) /
+            num((s.loan as Record<string, unknown> | undefined)?.commitment),
+        ),
+      };
+      const store = createFormStore({
+        schema: objectSchema({
+          assets: {
+            type: "array",
+            items: objectSchema({
+              id: { type: "string" },
+              landValue: { type: "number" },
+              share: formulaField("share"),
+            }),
+          },
+        }),
+        initialInput: { assets: [{ id: "a1", landValue: 250 }] },
+        offFormValues: { loan: { commitment: 1000 } },
+        calcEngine: makeEngine(exprs),
+      });
+      const share = getValueStore(store, ["assets", 0, "share"]);
+      expect(share.derived!.value.value).toBe(0.25);
+
+      // A fresher parent record re-resolves the row
+      setOffFormValues(store, { loan: { commitment: 500 } });
+      expect(share.derived!.value.value).toBe(0.5);
+    });
+
+    test("should NOT see root-level document fields in row scope", () => {
+      const exprs = { pick: stub(["note"], (s) => s.note ?? "unresolved") };
+      const store = createFormStore({
+        schema: objectSchema({
+          note: { type: "string" },
+          assets: {
+            type: "array",
+            items: objectSchema({
+              id: { type: "string" },
+              echo: formulaField("pick"),
+            }),
+          },
+        }),
+        initialInput: { note: "document", assets: [{ id: "a1" }] },
+        calcEngine: makeEngine(exprs),
+      });
+      // The server evaluates a row against its own record — a row formula
+      // that reached into the document would compute a different number here
+      expect(
+        getValueStore(store, ["assets", 0, "echo"]).derived!.value.value,
+      ).toBe("unresolved");
+    });
+
+    test("should propagate an erroring row formula to its row dependents", () => {
+      const exprs = {
+        boom: stub([], () => {
+          throw new Error("Division by zero");
+        }),
+        plusOne: stub(["broken"], (s) => num(s.broken) + 1),
+      };
+      const store = createFormStore({
+        schema: objectSchema({
+          assets: {
+            type: "array",
+            items: objectSchema({
+              id: { type: "string" },
+              broken: formulaField("boom"),
+              dependent: formulaField("plusOne"),
+            }),
+          },
+        }),
+        initialInput: { assets: [{ id: "a1" }, { id: "a2" }] },
+        offFormValues: { assets: [{ id: "a2", broken: 41 }] },
+        calcEngine: makeEngine(exprs),
+      });
+      const broken = getValueStore(store, ["assets", 0, "broken"]);
+      const dependent = getValueStore(store, ["assets", 0, "dependent"]);
+      expect(broken.derived!.value).toStrictEqual({
+        value: undefined,
+        error: "Division by zero",
+      });
+      expect(broken.errors.value).toStrictEqual(["Division by zero"]);
+      // The dependent must never fall back to the canonical stored value
+      expect(dependent.derived!.value).toStrictEqual({
+        value: undefined,
+        error: 'Upstream formula error: "broken"',
+      });
+      // …and the neighbour row is untouched — errors never cross rows
+      expect(
+        getValueStore(store, ["assets", 1, "broken"]).derived!.value.error,
+      ).toBe("Division by zero");
+    });
+
+    test("should break a cycle inside a row deterministically", () => {
+      const exprs = {
+        readsB: stub(["b"], (s) => num(s.b) + 1),
+        readsA: stub(["a"], (s) => num(s.a) + 1),
+      };
+      const store = createFormStore({
+        schema: objectSchema({
+          rows: {
+            type: "array",
+            items: objectSchema({
+              id: { type: "string" },
+              a: formulaField("readsB"),
+              b: formulaField("readsA"),
+            }),
+          },
+        }),
+        initialInput: { rows: [{ id: "r1", a: 5, b: 10 }] },
+        calcEngine: makeEngine(exprs),
+      });
+      const a = getValueStore(store, ["rows", 0, "a"]);
+      const b = getValueStore(store, ["rows", 0, "b"]);
+      // Identical to the root-level break: DFS in property order cuts b's
+      // edge back to a, so b resolves a through its stored input (5) and
+      // carries the error, and a — whose number descends from the cut edge
+      // — errors too
+      expect(b.derived!.value).toStrictEqual({
+        value: 6,
+        error: 'Circular reference: "b" reads "a"',
+      });
+      expect(a.derived!.value).toStrictEqual({
+        value: undefined,
+        error: 'Upstream formula error: "b"',
+      });
+    });
+
+    test("resolveScopeValueAt should read a dep in the scope of its path", () => {
+      const store = createFormStore({
+        schema: objectSchema({
+          landValue: { type: "number" },
+          assets: {
+            type: "array",
+            items: objectSchema({
+              id: { type: "string" },
+              landValue: { type: "number" },
+              buildingValue: { type: "number" },
+              rowTotal: formulaField("rowSum"),
+            }),
+          },
+        }),
+        initialInput: {
+          landValue: 5,
+          assets: [{ id: "a1", landValue: 100, buildingValue: 50 }],
+        },
+        offFormValues: {
+          loan: { commitment: 1000 },
+          assets: [{ id: "a1", liens: 7 }],
+        },
+        calcEngine: makeEngine(rowExprs()),
+      });
+      // Root path → the document scope
+      expect(resolveScopeValueAt(store, ["landValue"], "landValue")).toBe(5);
+      // Row path → the row's own value, the canonical row's fill, the
+      // parent handle, and a row formula through its derived signal
+      const rowPath = ["assets", 0, "rowTotal"];
+      expect(resolveScopeValueAt(store, rowPath, "landValue")).toBe(100);
+      expect(resolveScopeValueAt(store, rowPath, "liens")).toBe(7);
+      expect(resolveScopeValueAt(store, rowPath, "loan")).toStrictEqual({
+        commitment: 1000,
+      });
+      expect(resolveScopeValueAt(store, rowPath, "rowTotal")).toBe(150);
+      // A document field the row does not hold is NOT in row scope
+      expect(resolveScopeValueAt(store, rowPath, "note")).toBe(undefined);
+    });
+
+    test("should derive a row created AFTER store init", () => {
+      const store = createFormStore({
+        schema: rowSchema(),
+        initialInput: { assets: [{ id: "a1", landValue: 1, buildingValue: 1 }] },
+        calcEngine: makeEngine(rowExprs()),
+      });
+      // A whole-array write (the relation widgets' growth path)
+      setInput(store, ["assets"], [
+        { id: "a1", landValue: 1, buildingValue: 1 },
+        { id: "a2", landValue: 20, buildingValue: 5 },
+      ]);
+      expect(
+        getValueStore(store, ["assets", 1, "rowTotal"]).derived!.value.value,
+      ).toBe(25);
+
+      // …and an insert
+      insert(store, ["assets"], {
+        at: 2,
+        initialInput: { id: "a3", landValue: 100, buildingValue: 200 },
+      });
+      expect(
+        getValueStore(store, ["assets", 2, "rowTotal"]).derived!.value.value,
+      ).toBe(300);
     });
   });
 });

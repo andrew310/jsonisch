@@ -6,10 +6,13 @@ import type {
   CalcEngine,
   DerivedState,
   FieldErrors,
+  InternalFieldStore,
   InternalFormStore,
+  InternalObjectStore,
   InternalValueStore,
 } from "../types";
 import { mergeCollectionRows } from "./merge-collection-rows";
+import { resolveRowFallback } from "./row-scope";
 
 /**
  * One document formula: the field store it derives, the parsed AST (or the
@@ -21,6 +24,15 @@ interface FormulaEntry {
   deps: string[];
   parseError: string | null;
 }
+
+/**
+ * Resolves a dependency that is NOT chained through a formula sibling in
+ * the same scope: given the live form value the scope holds (`undefined`
+ * when it holds none), returns the value the expression evaluates against.
+ * The ONE place a scope's fill rules live — root-level fills from
+ * `offFormValues`, a row fills from its canonical record.
+ */
+type ResolveOutside = (dep: string, formValue: unknown) => unknown;
 
 /**
  * Key for a directed dep-graph edge (`from` reads `to`).
@@ -64,22 +76,79 @@ function messageOf(error: unknown): string {
  * persisted value or a plausible null-derived number in place of its
  * broken chain — and never poisons siblings.
  *
- * v1c boundary: only ROOT-LEVEL formula fields derive. A formula declared
- * inside an array item schema is walked as a plain value leaf — per-row
- * formulas reach forms pre-evaluated in their collection's canonical rows
- * (PR #459's server-side flatten), matching the current stack.
+ * Formulas inside array items derive too, in their ROW's scope — see
+ * `buildRowDerivation`, wired by the walk itself so a row added later
+ * derives like one loaded with the record.
  */
 export function buildDerivation(
   internalFormStore: InternalFormStore,
   engine: CalcEngine | undefined,
 ): void {
   if (!engine) return;
+  wireFormulaGraph(engine, internalFormStore.children, (dep, formValue) => {
+    const offValue = readOwn(internalFormStore.offFormValues.value, dep);
+    if (Array.isArray(offValue) && Array.isArray(formValue)) {
+      // Collection overlay: canonical rows enriched by the live form rows,
+      // membership from the live side
+      return mergeCollectionRows(
+        offValue as Array<Record<string, unknown>>,
+        formValue,
+      );
+    }
+    return formValue === undefined ? offValue : formValue;
+  });
+}
 
-  // Collect the document's formula fields in schema property order (the
+/**
+ * Builds the derivation graph over ONE array-item object store — the
+ * row-scoped half of the same closure (LOS-596): a formula declared inside
+ * an array item is a real derived field, with the same cycle break, the
+ * same upstream-error propagation and the same widget contract as a
+ * root-level one. It is scope, not machinery, that differs.
+ *
+ * A row's scope is its own record: live sibling values in the SAME row
+ * win, the canonical row from `offFormValues` (matched by `id`) fills what
+ * the write model does not hold, and the parent-record handle rides under
+ * `loan` — the precedence in `resolveRowFallback`, which is what the
+ * server's own per-row recompute evaluates against. Root-level form fields
+ * are deliberately NOT in scope: a row formula that reached across into
+ * the document would compute a different number here than on the server.
+ *
+ * Called by the walk (`initializeFieldStore`) for every array-item object,
+ * so rows added by an insert or a whole-array write derive on creation —
+ * there is no "derived only what the record loaded with" boundary.
+ *
+ * @param internalFormStore The form store (provides the engine and scope).
+ * @param rowStore The array-item object store.
+ */
+export function buildRowDerivation(
+  internalFormStore: InternalFormStore,
+  rowStore: InternalObjectStore,
+): void {
+  const engine = internalFormStore.calcEngine;
+  if (!engine) return;
+  wireFormulaGraph(engine, rowStore.children, (dep, formValue) =>
+    resolveRowFallback(internalFormStore, rowStore, dep, formValue),
+  );
+}
+
+/**
+ * Wires the formula fields of ONE scope (the document root or a single
+ * array row): collects the scope's parseable `x-formula` fields, breaks
+ * cycles among them, and gives each one its `formulaValue` / `derived` /
+ * `errors` channels. Everything scope-specific enters through
+ * `resolveOutside`.
+ */
+function wireFormulaGraph(
+  engine: CalcEngine,
+  children: Record<string, InternalFieldStore>,
+  resolveOutside: ResolveOutside,
+): void {
+  // Collect the scope's formula fields in schema property order (the
   // deterministic order every later step — cycle break included — runs in)
   const entries = new Map<string, FormulaEntry>();
-  for (const key of Object.keys(internalFormStore.children)) {
-    const child = internalFormStore.children[key];
+  for (const key of Object.keys(children)) {
+    const child = children[key];
     if (child.kind !== "value") continue;
     if (child.control !== "formula" && child.control !== "estimate") continue;
     // `x-server-maintained`: a dedicated server process owns the persisted
@@ -116,7 +185,7 @@ export function buildDerivation(
   // DFS stack — self-references included — is cut, and the field holding
   // the cut edge is flagged with a persistent calc error. Evaluation then
   // resolves the cut dep through the non-derived path (its input signal /
-  // `offFormValues`) instead of recursing.
+  // the scope's fill) instead of recursing.
   const brokenEdges = new Set<string>();
   const cycleErrors = new Map<string, string>();
   const dfsState = new Map<string, "visiting" | "done">();
@@ -139,7 +208,7 @@ export function buildDerivation(
 
   // Resolve one dependency through the single scope path
   const resolveDep = (fromKey: string, dep: string): unknown => {
-    const child = internalFormStore.children[dep];
+    const child = children[dep];
     let formValue: unknown;
     if (child) {
       const depEntry = child.kind === "value" ? entries.get(dep) : undefined;
@@ -161,16 +230,7 @@ export function buildDerivation(
         formValue = getFieldInput(child);
       }
     }
-    const offValue = readOwn(internalFormStore.offFormValues.value, dep);
-    if (Array.isArray(offValue) && Array.isArray(formValue)) {
-      // Collection overlay: canonical rows enriched by the live form rows,
-      // membership from the live side
-      return mergeCollectionRows(
-        offValue as Array<Record<string, unknown>>,
-        formValue,
-      );
-    }
-    return formValue === undefined ? offValue : formValue;
+    return resolveOutside(dep, formValue);
   };
 
   // Wire each formula field: the always-computed formula result, the
@@ -178,10 +238,6 @@ export function buildDerivation(
   // channel
   for (const [key, entry] of entries) {
     const { store } = entry;
-
-    // The estimate mode signal was created by the meta channel pass
-    // (companion decode / presence heuristic) before derivation runs
-    const mode = store.mode;
 
     store.isRollup =
       entry.parseError === null &&
@@ -215,10 +271,13 @@ export function buildDerivation(
     // settled LOS-515 rule ("empty manual → silent takeover"): dependents
     // read the formula result until a real estimate is typed, matching the
     // server recompute's fall-through and janska's eval-base behavior.
+    // The mode signal is the meta channel's (created by `buildMeta` before
+    // root derivation runs); read lazily, so a scope whose meta arrives
+    // later — a row, whose companions are not decoded — simply computes.
     const derived =
       store.control === "estimate"
         ? computed<DerivedState>(() =>
-            mode?.value === "estimate" && !isEmptyish(store.input.value)
+            store.mode?.value === "estimate" && !isEmptyish(store.input.value)
               ? { value: store.input.value, error: null }
               : formulaValue.value,
           )
