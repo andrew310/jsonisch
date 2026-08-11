@@ -226,8 +226,15 @@ export function initializeFieldStore(
 function isOpaqueObject(items: JsonSchema | JsonSchema[]): boolean {
   if (Array.isArray(items)) return false;
   const itemTypes = typeList(items);
-  return (
-    itemTypes.includes("object") &&
-    (items.properties === undefined || typeof items.properties !== "object")
-  );
+  if (!itemTypes.includes("object")) return false;
+  if (items.properties === undefined || typeof items.properties !== "object") {
+    return true;
+  }
+  // ZERO declared properties is just as opaque as none: there is no
+  // allow-list to walk into, and walking it anyway builds an array store
+  // whose rows can hold nothing — an object written into it collapses to
+  // an empty array (the LOS-642 assignee regression: legacy relation nodes
+  // declare `items: { type: "object", properties: {} }` while their widget
+  // reads/writes the whole value as a leaf).
+  return Object.keys(items.properties).length === 0;
 }
