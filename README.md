@@ -84,6 +84,12 @@ TanStack Form's headline is deep, compile-time **path type-inference**. `jsonisc
 - **methods** — tree-shakeable ops: `setInput`, `validate`, `reset`, `insert/move/remove/swap`, `handleSubmit`, `pickDirty`, `applyBaseline`.
 - **react** — `createFormHook`, `useAppForm`, `<Form>`, headless `<Field>`.
 
+Deeper dives, with diagrams, live in [`docs/`](./docs):
+
+- [decode-fork.md](./docs/decode-fork.md) — how a server record becomes `initialInput` (`x-column` routing, the companion twin).
+- [plugin-lifecycle.md](./docs/plugin-lifecycle.md) — the pass order at build, and the reseed / rebase / reset / transfer sites.
+- [wire-shapes.md](./docs/wire-shapes.md) — the save payload partition, the companion envelopes, and the LOS-461 skip policy.
+
 ---
 
 ## License / status

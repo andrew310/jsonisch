@@ -29,6 +29,10 @@ import type { WireContract } from "../plugin/types";
 import { isSafeKey, readOwn } from "../schema-utils";
 import type { JsonSchema } from "../types";
 
+// The decode fork, drawn out: `docs/decode-fork.md` in this package.
+// It is the one home for the diagram (record → columns vs `data` bag, and
+// the companion twin) — keep the picture there, not duplicated here.
+
 /**
  * Options for `decodeRecord`.
  */
