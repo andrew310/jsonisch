@@ -7,11 +7,14 @@ import { setFieldInput } from "../core/field/set-field-input";
 import { validateIfRequired } from "../core/form/validate-if-required";
 import type {
   DerivationMode,
-  EntryMode,
   FieldElement,
   InternalFieldStore,
+  InternalFormStore,
   Path,
 } from "../core/types";
+import { companionsKey } from "../plugins/companions/key";
+import type { EntryMode } from "../plugins/companions/types";
+import { derivationKey } from "../plugins/derivation/key";
 import { setEntryMode, setPercentBasis } from "../methods/set-entry";
 import { setMode } from "../methods/set-mode";
 import type { FieldStore, FormStore } from "./types";
@@ -21,12 +24,23 @@ import { useSignalSnapshot } from "./use-signal-snapshot";
  * Everything reactive about a field, read in one tracked pass owned by
  * `useSignalSnapshot` (never inline in a component body, so React Compiler
  * memoization cannot elide the reads).
+ *
+ * Feature values come from the plugin slots (companions/derivation) —
+ * read through the exported keys. Interim wiring: slice 3 (LOS-604)
+ * replaces these hard-coded reads with each plugin's `fieldSnapshot`
+ * contribution.
  */
-function readFieldSnapshot(internalFieldStore: InternalFieldStore) {
-  const hybridMeta =
-    internalFieldStore.kind === "value" &&
-    internalFieldStore.meta?.family === "hybrid"
-      ? internalFieldStore.meta
+function readFieldSnapshot(
+  internalFormStore: InternalFormStore,
+  internalFieldStore: InternalFieldStore,
+) {
+  const companionSlot =
+    internalFieldStore.kind === "value"
+      ? companionsKey.get(internalFormStore, internalFieldStore)
+      : undefined;
+  const derivationSlot =
+    internalFieldStore.kind === "value"
+      ? derivationKey.get(internalFormStore, internalFieldStore)
       : undefined;
   return {
     input: getFieldInput(internalFieldStore),
@@ -42,20 +56,18 @@ function readFieldSnapshot(internalFieldStore: InternalFieldStore) {
         : (internalFieldStore.visible?.value ?? true),
     // Focus-on-error is for errors the user can fix — never a calc error
     autoFocus: !!internalFieldStore.validationErrors.value,
-    derived:
-      internalFieldStore.kind === "value"
-        ? internalFieldStore.derived?.value
-        : undefined,
-    formulaValue:
-      internalFieldStore.kind === "value"
-        ? internalFieldStore.formulaValue?.value
-        : undefined,
+    derived: derivationSlot?.derived.value,
+    formulaValue: derivationSlot?.formulaValue.value,
     mode:
-      internalFieldStore.kind === "value"
-        ? internalFieldStore.mode?.value
+      companionSlot?.family === "source" ? companionSlot.mode.value : undefined,
+    entryMode:
+      companionSlot?.family === "hybrid"
+        ? companionSlot.entryMode.value
         : undefined,
-    entryMode: hybridMeta?.entryMode.value,
-    percentBasis: hybridMeta?.percentBasis.value,
+    percentBasis:
+      companionSlot?.family === "hybrid"
+        ? companionSlot.percentBasis.value
+        : undefined,
   };
 }
 
@@ -104,8 +116,8 @@ export function useField(form: FormStore, path: Path): FieldStore {
   }, [internalFieldStore]);
 
   const reactive = useSignalSnapshot(
-    () => readFieldSnapshot(internalFieldStore),
-    [internalFieldStore],
+    () => readFieldSnapshot(internalFormStore, internalFieldStore),
+    [internalFormStore, internalFieldStore],
   );
 
   // Callbacks and DOM plumbing: identity-stable for the field's lifetime.

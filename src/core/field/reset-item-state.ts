@@ -1,5 +1,5 @@
 import { batch, createId } from "../framework";
-import { buildMeta } from "../meta/build-meta";
+import { dispatchReseedScope, unwrapLeafInput } from "../plugin/driver";
 import {
   containerPresence,
   readOwn,
@@ -101,15 +101,15 @@ export function resetItemState(
         }
 
         // An array item reused for a DIFFERENT row (a shrink-then-regrow, a
-        // grown baseline row) must adopt the new row's companions too: its
-        // meta channel is re-seeded from the row's own object value, the
-        // same bag the walk built it from. Runs after the value reset, like
-        // the meta pass does everywhere else.
+        // grown baseline row) must adopt the new row's plugin state too:
+        // each plugin re-seeds its slots in place from the row's own raw
+        // object, the same raw the walk built them from. Runs after the
+        // value reset, like the scope passes do everywhere else.
         if (
           typeof internalFieldStore.path[internalFieldStore.path.length - 1] ===
           "number"
         ) {
-          buildMeta(internalFieldStore, input);
+          dispatchReseedScope(internalFormStore, internalFieldStore, input);
         }
       }
     } else {
@@ -117,7 +117,7 @@ export function resetItemState(
         internalFormStore.emptyInput,
         internalFieldStore.schema,
         internalFieldStore.isNullish,
-        input,
+        unwrapLeafInput(internalFormStore, internalFieldStore.control, input),
       );
       if (!keepStart) {
         internalFieldStore.startInput.value = valueInput;

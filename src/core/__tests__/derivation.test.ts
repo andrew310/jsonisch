@@ -7,13 +7,23 @@ import { getDirtyPaths } from "../../methods/get-dirty-paths";
 import { setErrors } from "../../methods/errors";
 import { setInput } from "../../methods/set-input";
 import { setOffFormValues } from "../../methods/set-off-form-values";
-import { resolveScopeValueAt } from "../derivation/resolve-scope-value";
+import { companionsKey } from "../../plugins/companions/key";
+import type { SourceSlot } from "../../plugins/companions/types";
+import { derivationKey } from "../../plugins/derivation/key";
+import type { DerivationSlot } from "../../plugins/derivation/key";
+import { resolveScopeValueAt } from "../../plugins/derivation/resolve-scope-value";
 import { getFieldBool } from "../field/get-field-bool";
 import { batch } from "../framework";
 import { createFormStore } from "../form/create-form-store";
 import { validateFormInput } from "../form/validate-form-input";
-import { getValueStore, objectSchema } from "../vitest/utils";
-import type { CalcEngine, JsonSchema } from "../types";
+import { getValueStore, objectSchema, testPlugins } from "../vitest/utils";
+import type {
+  DerivedState,
+  InternalFormStore,
+  JsonSchema,
+  Path,
+  CalcEngine,
+} from "../types";
 
 /**
  * Stub calc engine: each `x-formula` string keys into a registry of nodes
@@ -50,6 +60,41 @@ function makeEngine(exprs: Record<string, StubNode>): CalcEngine {
   };
 }
 
+/**
+ * The derivation slot of the value field at `path` — `undefined` when the
+ * plugin is not registered or the field carries no formula.
+ */
+function derivationSlotAt(
+  form: InternalFormStore,
+  path: Path,
+): DerivationSlot | undefined {
+  return derivationKey.get(form, getValueStore(form, path));
+}
+
+/**
+ * The mode-aware derived state of the field at `path`. Throws when the
+ * field has no derivation slot — every caller here expects one.
+ */
+function derivedAt(form: InternalFormStore, path: Path): DerivedState {
+  const slot = derivationSlotAt(form, path);
+  if (!slot) {
+    throw new Error(`No derivation slot at ${JSON.stringify(path)}`);
+  }
+  return slot.derived.value;
+}
+
+/**
+ * The companions plugin's source slot (the estimate mode signal lives
+ * there — derivation reads it through `companionsKey`).
+ */
+function sourceSlotAt(
+  form: InternalFormStore,
+  path: Path,
+): SourceSlot | undefined {
+  const slot = companionsKey.get(form, getValueStore(form, path));
+  return slot?.family === "source" ? slot : undefined;
+}
+
 function formulaField(formula: string, extra?: JsonSchema): JsonSchema {
   return { type: "number", "x-field-type": "calculated", "x-formula": formula, ...extra };
 }
@@ -75,9 +120,9 @@ describe("derivation", () => {
           total: formulaField("sum"),
         }),
         initialInput: { a: 2, b: 3 },
-        calcEngine: makeEngine(exprs),
+        plugins: testPlugins(makeEngine(exprs)),
       });
-      expect(getValueStore(store, ["total"]).derived?.value).toStrictEqual({
+      expect(derivedAt(store, ["total"])).toStrictEqual({
         value: 5,
         error: null,
       });
@@ -93,20 +138,19 @@ describe("derivation", () => {
           total: formulaField("sum"),
         }),
         initialInput: { a: 2, b: 3, unrelated: "x" },
-        calcEngine: makeEngine(exprs),
+        plugins: testPlugins(makeEngine(exprs)),
       });
-      const total = getValueStore(store, ["total"]);
-      expect(total.derived!.value.value).toBe(5);
-      expect(total.derived!.value.value).toBe(5);
+      expect(derivedAt(store, ["total"]).value).toBe(5);
+      expect(derivedAt(store, ["total"]).value).toBe(5);
       expect(exprs.sum.fn).toHaveBeenCalledTimes(1);
 
       // An unrelated edit must not invalidate the computed
       setInput(store, ["unrelated"], "y");
-      expect(total.derived!.value.value).toBe(5);
+      expect(derivedAt(store, ["total"]).value).toBe(5);
       expect(exprs.sum.fn).toHaveBeenCalledTimes(1);
 
       setInput(store, ["a"], 10);
-      expect(total.derived!.value.value).toBe(13);
+      expect(derivedAt(store, ["total"]).value).toBe(13);
       expect(exprs.sum.fn).toHaveBeenCalledTimes(2);
     });
 
@@ -119,15 +163,14 @@ describe("derivation", () => {
           total: formulaField("sum"),
         }),
         initialInput: { a: 1, b: 1 },
-        calcEngine: makeEngine(exprs),
+        plugins: testPlugins(makeEngine(exprs)),
       });
-      const total = getValueStore(store, ["total"]);
-      expect(total.derived!.value.value).toBe(2);
+      expect(derivedAt(store, ["total"]).value).toBe(2);
       batch(() => {
         setInput(store, ["a"], 10);
         setInput(store, ["b"], 20);
       });
-      expect(total.derived!.value.value).toBe(30);
+      expect(derivedAt(store, ["total"]).value).toBe(30);
       expect(exprs.sum.fn).toHaveBeenCalledTimes(2);
     });
 
@@ -143,13 +186,13 @@ describe("derivation", () => {
           c: formulaField("plusOne"),
         }),
         initialInput: { a: 5 },
-        calcEngine: makeEngine(exprs),
+        plugins: testPlugins(makeEngine(exprs)),
       });
-      expect(getValueStore(store, ["c"]).derived!.value.value).toBe(11);
+      expect(derivedAt(store, ["c"]).value).toBe(11);
 
       setInput(store, ["a"], 10);
-      expect(getValueStore(store, ["c"]).derived!.value.value).toBe(21);
-      expect(getValueStore(store, ["b"]).derived!.value.value).toBe(20);
+      expect(derivedAt(store, ["c"]).value).toBe(21);
+      expect(derivedAt(store, ["b"]).value).toBe(20);
     });
 
     test("should chain through the FRESH derived value, not a stale stored input", () => {
@@ -166,9 +209,9 @@ describe("derivation", () => {
           c: formulaField("plusOne"),
         }),
         initialInput: { a: 5, b: 999 },
-        calcEngine: makeEngine(exprs),
+        plugins: testPlugins(makeEngine(exprs)),
       });
-      expect(getValueStore(store, ["c"]).derived!.value.value).toBe(11);
+      expect(derivedAt(store, ["c"]).value).toBe(11);
     });
   });
 
@@ -182,9 +225,9 @@ describe("derivation", () => {
         }),
         initialInput: { a: 7 },
         offFormValues: { a: 100 },
-        calcEngine: makeEngine(exprs),
+        plugins: testPlugins(makeEngine(exprs)),
       });
-      expect(getValueStore(store, ["out"]).derived!.value.value).toBe(7);
+      expect(derivedAt(store, ["out"]).value).toBe(7);
     });
 
     test("should let an explicit null form value win over offFormValues", () => {
@@ -199,10 +242,10 @@ describe("derivation", () => {
         ),
         initialInput: { a: 42 },
         offFormValues: { a: 100 },
-        calcEngine: makeEngine(exprs),
+        plugins: testPlugins(makeEngine(exprs)),
       });
       setInput(store, ["a"], null);
-      expect(getValueStore(store, ["out"]).derived!.value.value).toBe(null);
+      expect(derivedAt(store, ["out"]).value).toBe(null);
     });
 
     test("should fill only undefined form values from offFormValues", () => {
@@ -216,9 +259,9 @@ describe("derivation", () => {
           [],
         ),
         offFormValues: { a: 100 },
-        calcEngine: makeEngine(exprs),
+        plugins: testPlugins(makeEngine(exprs)),
       });
-      expect(getValueStore(store, ["out"]).derived!.value.value).toBe(100);
+      expect(derivedAt(store, ["out"]).value).toBe(100);
     });
 
     test("should resolve a schema-absent (soft-deleted) dep from offFormValues", () => {
@@ -226,18 +269,18 @@ describe("derivation", () => {
       const store = createFormStore({
         schema: objectSchema({ out: formulaField("echo") }),
         offFormValues: { ghost: 55 },
-        calcEngine: makeEngine(exprs),
+        plugins: testPlugins(makeEngine(exprs)),
       });
-      expect(getValueStore(store, ["out"]).derived!.value.value).toBe(55);
+      expect(derivedAt(store, ["out"]).value).toBe(55);
     });
 
     test("should pass undefined for a dep that resolves nowhere", () => {
       const exprs = { echo: stub(["nowhere"], (s) => s.nowhere) };
       const store = createFormStore({
         schema: objectSchema({ out: formulaField("echo") }),
-        calcEngine: makeEngine(exprs),
+        plugins: testPlugins(makeEngine(exprs)),
       });
-      expect(getValueStore(store, ["out"]).derived!.value.value).toBe(undefined);
+      expect(derivedAt(store, ["out"]).value).toBe(undefined);
     });
   });
 
@@ -274,9 +317,9 @@ describe("derivation", () => {
             { id: "r3", v: 1000 },
           ],
         },
-        calcEngine: makeEngine(exprs),
+        plugins: testPlugins(makeEngine(exprs)),
       });
-      expect(getValueStore(store, ["total"]).derived!.value.value).toBe(3);
+      expect(derivedAt(store, ["total"]).value).toBe(3);
       const scope = exprs.rollup.fn.mock.calls[0][0] as Record<string, unknown>;
       // Canonical enriched the live row with the server-only column
       expect(scope.items).toStrictEqual([
@@ -303,11 +346,11 @@ describe("derivation", () => {
           total: formulaField("rollup"),
         }),
         initialInput: { items: [{ id: "r1", v: 1 }, { id: "r2", v: 2 }] },
-        calcEngine: makeEngine(exprs),
+        plugins: testPlugins(makeEngine(exprs)),
       });
-      expect(getValueStore(store, ["total"]).derived!.value.value).toBe(3);
+      expect(derivedAt(store, ["total"]).value).toBe(3);
       setInput(store, ["items", 1, "v"], 40);
-      expect(getValueStore(store, ["total"]).derived!.value.value).toBe(41);
+      expect(derivedAt(store, ["total"]).value).toBe(41);
     });
 
     test("should use canonical rows directly when the form has no collection field", () => {
@@ -325,9 +368,9 @@ describe("derivation", () => {
       const store = createFormStore({
         schema: objectSchema({ total: formulaField("rollup") }),
         offFormValues: { assets: [{ id: "a1", aiv: 500 }, { id: "a2", aiv: 250 }] },
-        calcEngine: makeEngine(exprs),
+        plugins: testPlugins(makeEngine(exprs)),
       });
-      expect(getValueStore(store, ["total"]).derived!.value.value).toBe(750);
+      expect(derivedAt(store, ["total"]).value).toBe(750);
     });
   });
 
@@ -337,11 +380,11 @@ describe("derivation", () => {
       const store = createFormStore({
         schema: objectSchema({ out: formulaField("echo") }),
         offFormValues: { base: 1 },
-        calcEngine: makeEngine(exprs),
+        plugins: testPlugins(makeEngine(exprs)),
       });
-      expect(getValueStore(store, ["out"]).derived!.value.value).toBe(1);
+      expect(derivedAt(store, ["out"]).value).toBe(1);
       setOffFormValues(store, { base: 2 });
-      expect(getValueStore(store, ["out"]).derived!.value.value).toBe(2);
+      expect(derivedAt(store, ["out"]).value).toBe(2);
       expect(exprs.echo.fn).toHaveBeenCalledTimes(2);
     });
 
@@ -356,13 +399,13 @@ describe("derivation", () => {
           outB: formulaField("echoB"),
         }),
         offFormValues: { base: 1 },
-        calcEngine: makeEngine(exprs),
+        plugins: testPlugins(makeEngine(exprs)),
       });
-      expect(getValueStore(store, ["outA"]).derived!.value.value).toBe(1);
-      expect(getValueStore(store, ["outB"]).derived!.value.value).toBe(2);
+      expect(derivedAt(store, ["outA"]).value).toBe(1);
+      expect(derivedAt(store, ["outB"]).value).toBe(2);
       setOffFormValues(store, { base: 10 });
-      expect(getValueStore(store, ["outA"]).derived!.value.value).toBe(10);
-      expect(getValueStore(store, ["outB"]).derived!.value.value).toBe(20);
+      expect(derivedAt(store, ["outA"]).value).toBe(10);
+      expect(derivedAt(store, ["outB"]).value).toBe(20);
       expect(exprs.echoA.fn).toHaveBeenCalledTimes(2);
       expect(exprs.echoB.fn).toHaveBeenCalledTimes(2);
     });
@@ -380,10 +423,9 @@ describe("derivation", () => {
         }),
         initialInput: { a: 1 },
         offFormValues: { external: 10 },
-        calcEngine: makeEngine(exprs),
+        plugins: testPlugins(makeEngine(exprs)),
       });
-      const total = getValueStore(store, ["total"]);
-      expect(total.derived!.value.value).toBe(11);
+      expect(derivedAt(store, ["total"]).value).toBe(11);
       expect(exprs.sum.fn).toHaveBeenCalledTimes(1);
 
       applyBaseline(
@@ -394,7 +436,7 @@ describe("derivation", () => {
 
       // Both the dep rebase and the off-form refresh land in ONE batch — a
       // consistent snapshot, one evaluation on the next read
-      expect(total.derived!.value.value).toBe(22);
+      expect(derivedAt(store, ["total"]).value).toBe(22);
       expect(exprs.sum.fn).toHaveBeenCalledTimes(2);
     });
 
@@ -421,17 +463,16 @@ describe("derivation", () => {
           total: formulaField("rollup"),
         }),
         initialInput: { items: [{ id: "r1", v: 1 }, { id: "r2", v: 2 }] },
-        calcEngine: makeEngine(exprs),
+        plugins: testPlugins(makeEngine(exprs)),
       });
-      const total = getValueStore(store, ["total"]);
-      expect(total.derived!.value.value).toBe(3);
+      expect(derivedAt(store, ["total"]).value).toBe(3);
       expect(exprs.rollup.fn).toHaveBeenCalledTimes(1);
 
       applyBaseline(store, {
         data: { items: [{ id: "r1", v: 100 }, { id: "r2", v: 200 }] },
       });
 
-      expect(total.derived!.value.value).toBe(300);
+      expect(derivedAt(store, ["total"]).value).toBe(300);
       expect(exprs.rollup.fn).toHaveBeenCalledTimes(2);
     });
   });
@@ -453,15 +494,15 @@ describe("derivation", () => {
           good: formulaField("fine"),
         }),
         initialInput: { a: -1, b: 1 },
-        calcEngine: makeEngine(exprs),
+        plugins: testPlugins(makeEngine(exprs)),
       });
       const bad = getValueStore(store, ["bad"]);
-      expect(bad.derived!.value).toStrictEqual({
+      expect(derivedAt(store, ["bad"])).toStrictEqual({
         value: undefined,
         error: "#ERROR: negative input",
       });
       expect(bad.errors.value).toStrictEqual(["#ERROR: negative input"]);
-      expect(getValueStore(store, ["good"]).derived!.value.value).toBe(2);
+      expect(derivedAt(store, ["good"]).value).toBe(2);
       expect(getValueStore(store, ["good"]).errors.value).toBe(null);
     });
 
@@ -478,14 +519,14 @@ describe("derivation", () => {
           bad: formulaField("boom"),
         }),
         initialInput: { a: -1 },
-        calcEngine: makeEngine(exprs),
+        plugins: testPlugins(makeEngine(exprs)),
       });
       expect(getValueStore(store, ["bad"]).errors.value).toStrictEqual([
         "#ERROR: negative input",
       ]);
       setInput(store, ["a"], 5);
       expect(getValueStore(store, ["bad"]).errors.value).toBe(null);
-      expect(getValueStore(store, ["bad"]).derived!.value.value).toBe(5);
+      expect(derivedAt(store, ["bad"]).value).toBe(5);
     });
 
     test("should flag a parse failure without breaking other formulas", () => {
@@ -497,13 +538,13 @@ describe("derivation", () => {
           good: formulaField("fine"),
         }),
         initialInput: { a: 1 },
-        calcEngine: makeEngine(exprs),
+        plugins: testPlugins(makeEngine(exprs)),
       });
-      expect(getValueStore(store, ["broken"]).derived!.value).toStrictEqual({
+      expect(derivedAt(store, ["broken"])).toStrictEqual({
         value: undefined,
         error: "Unparseable formula: not-registered",
       });
-      expect(getValueStore(store, ["good"]).derived!.value.value).toBe(2);
+      expect(derivedAt(store, ["good"]).value).toBe(2);
     });
 
     test("should propagate an erroring formula dep to its dependents and recover", () => {
@@ -525,10 +566,10 @@ describe("derivation", () => {
         // erroring live computation: a broken chain shows errors, never a
         // stale-but-plausible number
         offFormValues: { bad: 33 },
-        calcEngine: makeEngine(exprs),
+        plugins: testPlugins(makeEngine(exprs)),
       });
       const out = getValueStore(store, ["out"]);
-      expect(out.derived!.value).toStrictEqual({
+      expect(derivedAt(store, ["out"])).toStrictEqual({
         value: undefined,
         error: 'Upstream formula error: "bad"',
       });
@@ -536,7 +577,7 @@ describe("derivation", () => {
 
       // The upstream recovers: the whole chain clears
       setInput(store, ["a"], 5);
-      expect(out.derived!.value).toStrictEqual({ value: 5, error: null });
+      expect(derivedAt(store, ["out"])).toStrictEqual({ value: 5, error: null });
       expect(out.errors.value).toBe(null);
     });
 
@@ -552,7 +593,7 @@ describe("derivation", () => {
       const store = createFormStore({
         schema: objectSchema({ bad: formulaField("boom") }),
         validator: () => issues,
-        calcEngine: makeEngine(exprs),
+        plugins: testPlugins(makeEngine(exprs)),
       });
       const bad = getValueStore(store, ["bad"]);
 
@@ -582,7 +623,7 @@ describe("derivation", () => {
       };
       const store = createFormStore({
         schema: objectSchema({ bad: formulaField("boom") }),
-        calcEngine: makeEngine(exprs),
+        plugins: testPlugins(makeEngine(exprs)),
       });
       expect(getValueStore(store, ["bad"]).errors.value).toStrictEqual([
         "#ERROR: broken",
@@ -604,7 +645,7 @@ describe("derivation", () => {
           b: formulaField("fromA"),
         }),
         offFormValues: { a: 10 },
-        calcEngine: makeEngine(exprs),
+        plugins: testPlugins(makeEngine(exprs)),
       });
       // DFS in property order visits a → b; b's edge back to a is cut, so b
       // resolves a through the fallback path (offFormValues) and carries the
@@ -613,12 +654,12 @@ describe("derivation", () => {
       // than showing suspect values on half of it
       const a = getValueStore(store, ["a"]);
       const b = getValueStore(store, ["b"]);
-      expect(b.derived!.value).toStrictEqual({
+      expect(derivedAt(store, ["b"])).toStrictEqual({
         value: 11,
         error: 'Circular reference: "b" reads "a"',
       });
       expect(b.errors.value).toStrictEqual(['Circular reference: "b" reads "a"']);
-      expect(a.derived!.value).toStrictEqual({
+      expect(derivedAt(store, ["a"])).toStrictEqual({
         value: undefined,
         error: 'Upstream formula error: "b"',
       });
@@ -630,11 +671,10 @@ describe("derivation", () => {
       const store = createFormStore({
         schema: objectSchema({ a: formulaField("selfRef") }),
         initialInput: { a: 5 },
-        calcEngine: makeEngine(exprs),
+        plugins: testPlugins(makeEngine(exprs)),
       });
-      const a = getValueStore(store, ["a"]);
       // The cut self-edge resolves from the field's own stored input
-      expect(a.derived!.value).toStrictEqual({
+      expect(derivedAt(store, ["a"])).toStrictEqual({
         value: 6,
         error: 'Circular reference: "a" reads "a"',
       });
@@ -650,15 +690,14 @@ describe("derivation", () => {
           fee: estimateField("sum"),
         }),
         initialInput: { a: 10, fee: 1234 },
-        calcEngine: makeEngine(exprs),
+        plugins: testPlugins(makeEngine(exprs)),
       });
-      const fee = getValueStore(store, ["fee"]);
-      expect(fee.mode?.value).toBe("estimate");
-      expect(fee.derived!.value).toStrictEqual({ value: 1234, error: null });
+      expect(sourceSlotAt(store, ["fee"])?.mode.value).toBe("estimate");
+      expect(derivedAt(store, ["fee"])).toStrictEqual({ value: 1234, error: null });
 
       // A pinned field reads no deps — dep edits must not recompute it
       setInput(store, ["a"], 50);
-      expect(fee.derived!.value.value).toBe(1234);
+      expect(derivedAt(store, ["fee"]).value).toBe(1234);
       expect(exprs.sum.fn).not.toHaveBeenCalled();
     });
 
@@ -676,17 +715,16 @@ describe("derivation", () => {
           ["a"],
         ),
         initialInput: { a: 10 },
-        calcEngine: makeEngine(exprs),
+        plugins: testPlugins(makeEngine(exprs)),
       });
-      const fee = getValueStore(store, ["fee"]);
-      expect(fee.mode?.value).toBe("estimate");
-      expect(fee.derived!.value).toStrictEqual({ value: 20, error: null });
+      expect(sourceSlotAt(store, ["fee"])?.mode.value).toBe("estimate");
+      expect(derivedAt(store, ["fee"])).toStrictEqual({ value: 20, error: null });
 
       // Typing a real estimate pins; clearing it un-pins again
       setInput(store, ["fee"], 7);
-      expect(fee.derived!.value).toStrictEqual({ value: 7, error: null });
+      expect(derivedAt(store, ["fee"])).toStrictEqual({ value: 7, error: null });
       setInput(store, ["fee"], "");
-      expect(fee.derived!.value).toStrictEqual({ value: 20, error: null });
+      expect(derivedAt(store, ["fee"])).toStrictEqual({ value: 20, error: null });
     });
 
     test("should recompute when flipped to formula and hold again when flipped back", () => {
@@ -697,13 +735,15 @@ describe("derivation", () => {
           fee: estimateField("sum"),
         }),
         initialInput: { a: 10, fee: 1234 },
-        calcEngine: makeEngine(exprs),
+        plugins: testPlugins(makeEngine(exprs)),
       });
-      const fee = getValueStore(store, ["fee"]);
-      fee.mode!.value = "formula";
-      expect(fee.derived!.value.value).toBe(20);
-      fee.mode!.value = "estimate";
-      expect(fee.derived!.value.value).toBe(1234);
+      // Derivation reads the mode through the companions slot — the pin
+      // engages off THAT signal, not off a member of the field store
+      const mode = sourceSlotAt(store, ["fee"])!.mode;
+      mode.value = "formula";
+      expect(derivedAt(store, ["fee"]).value).toBe(20);
+      mode.value = "estimate";
+      expect(derivedAt(store, ["fee"]).value).toBe(1234);
     });
   });
 
@@ -720,11 +760,11 @@ describe("derivation", () => {
           out: formulaField("plain"),
           broken: formulaField("not-registered"),
         }),
-        calcEngine: makeEngine(exprs),
+        plugins: testPlugins(makeEngine(exprs)),
       });
-      expect(getValueStore(store, ["total"]).isRollup).toBe(true);
-      expect(getValueStore(store, ["out"]).isRollup).toBe(false);
-      expect(getValueStore(store, ["broken"]).isRollup).toBe(false);
+      expect(derivationSlotAt(store, ["total"])?.isRollup).toBe(true);
+      expect(derivationSlotAt(store, ["out"])?.isRollup).toBe(false);
+      expect(derivationSlotAt(store, ["broken"])?.isRollup).toBe(false);
     });
   });
 
@@ -737,10 +777,10 @@ describe("derivation", () => {
           total: formulaField("sum"),
         }),
         initialInput: { a: 1 },
-        calcEngine: makeEngine(exprs),
+        plugins: testPlugins(makeEngine(exprs)),
       });
       setInput(store, ["a"], 2);
-      expect(getValueStore(store, ["total"]).derived!.value.value).toBe(3);
+      expect(derivedAt(store, ["total"]).value).toBe(3);
       expect(getDirtyPaths(store)).toStrictEqual([["a"]]);
       expect(getValueStore(store, ["total"]).isDirty.value).toBe(false);
     });
@@ -759,14 +799,13 @@ describe("derivation", () => {
           maturityDate: formulaField("wrong", { "x-server-maintained": true }),
         }),
         initialInput: { a: 1, maturityDate: "2027-06-01" },
-        calcEngine: makeEngine(exprs),
+        plugins: testPlugins(makeEngine(exprs)),
       });
-      const field = getValueStore(store, ["maturityDate"]);
-      expect(field.derived?.value).toStrictEqual({
+      expect(derivedAt(store, ["maturityDate"])).toStrictEqual({
         value: "2027-06-01",
         error: null,
       });
-      expect(field.isRollup).toBe(false);
+      expect(derivationSlotAt(store, ["maturityDate"])?.isRollup).toBe(false);
       expect(exprs.wrong.fn).not.toHaveBeenCalled();
     });
 
@@ -782,14 +821,14 @@ describe("derivation", () => {
           out: formulaField("plusOne"),
         }),
         initialInput: { a: 1, m: 10 },
-        calcEngine: makeEngine(exprs),
+        plugins: testPlugins(makeEngine(exprs)),
       });
-      expect(getValueStore(store, ["out"]).derived!.value.value).toBe(11);
+      expect(derivedAt(store, ["out"]).value).toBe(11);
       // Fresh server record (e.g. after an extension shifted the column):
       // the passthrough derived signal follows the rebased input.
       applyBaseline(store, { data: { a: 1, m: 22 } });
-      expect(getValueStore(store, ["m"]).derived!.value.value).toBe(22);
-      expect(getValueStore(store, ["out"]).derived!.value.value).toBe(23);
+      expect(derivedAt(store, ["m"]).value).toBe(22);
+      expect(derivedAt(store, ["out"]).value).toBe(23);
     });
   });
 
@@ -803,8 +842,8 @@ describe("derivation", () => {
         initialInput: { a: 1, total: 9 },
       });
       const total = getValueStore(store, ["total"]);
-      expect(total.derived).toBe(undefined);
-      expect(total.mode).toBe(undefined);
+      expect(derivationSlotAt(store, ["total"])).toBe(undefined);
+      expect(sourceSlotAt(store, ["total"])).toBe(undefined);
       expect(total.input.value).toBe(9);
     });
 
@@ -819,7 +858,9 @@ describe("derivation", () => {
         initialInput: { rows: [{ perRow: 7 }] },
       });
       const perRow = getValueStore(store, ["rows", 0, "perRow"]);
-      expect(perRow.derived).toBe(undefined);
+      expect(
+        derivationSlotAt(store, ["rows", 0, "perRow"]),
+      ).toBe(undefined);
       expect(perRow.input.value).toBe(7);
     });
   });
@@ -859,14 +900,14 @@ describe("derivation", () => {
             { id: "a2", landValue: 7, buildingValue: 3 },
           ],
         },
-        calcEngine: makeEngine(rowExprs()),
+        plugins: testPlugins(makeEngine(rowExprs())),
       });
       expect(
-        getValueStore(store, ["assets", 0, "rowTotal"]).derived!.value,
+        derivedAt(store, ["assets", 0, "rowTotal"]),
       ).toStrictEqual({ value: 150, error: null });
       // Each row computes from ITS OWN siblings — never row 0's
       expect(
-        getValueStore(store, ["assets", 1, "rowTotal"]).derived!.value.value,
+        derivedAt(store, ["assets", 1, "rowTotal"]).value,
       ).toBe(10);
     });
 
@@ -880,18 +921,16 @@ describe("derivation", () => {
             { id: "a2", landValue: 7, buildingValue: 3 },
           ],
         },
-        calcEngine: makeEngine(exprs),
+        plugins: testPlugins(makeEngine(exprs)),
       });
-      const first = getValueStore(store, ["assets", 0, "rowTotal"]);
-      const second = getValueStore(store, ["assets", 1, "rowTotal"]);
-      expect(first.derived!.value.value).toBe(150);
-      expect(second.derived!.value.value).toBe(10);
+      expect(derivedAt(store, ["assets", 0, "rowTotal"]).value).toBe(150);
+      expect(derivedAt(store, ["assets", 1, "rowTotal"]).value).toBe(10);
 
       setInput(store, ["assets", 0, "landValue"], 900);
-      expect(first.derived!.value.value).toBe(950);
+      expect(derivedAt(store, ["assets", 0, "rowTotal"]).value).toBe(950);
       // …and the neighbour row stays put (its computed was never invalidated)
       const calls = exprs.rowSum.fn.mock.calls.length;
-      expect(second.derived!.value.value).toBe(10);
+      expect(derivedAt(store, ["assets", 1, "rowTotal"]).value).toBe(10);
       expect(exprs.rowSum.fn.mock.calls.length).toBe(calls);
     });
 
@@ -916,16 +955,16 @@ describe("derivation", () => {
             { id: "a2", landValue: 5, buildingValue: 9 },
           ],
         },
-        calcEngine: makeEngine(rowExprs()),
+        plugins: testPlugins(makeEngine(rowExprs())),
       });
       // Row order is NOT identity: `a1` sits at index 1 in the form and at
       // index 0 in the canonical rows
       expect(
-        getValueStore(store, ["assets", 1, "rowTotal"]).derived!.value.value,
+        derivedAt(store, ["assets", 1, "rowTotal"]).value,
       ).toBe(150);
       // An unedited row resolves entirely from its canonical record
       expect(
-        getValueStore(store, ["assets", 0, "rowTotal"]).derived!.value.value,
+        derivedAt(store, ["assets", 0, "rowTotal"]).value,
       ).toBe(14);
     });
 
@@ -951,14 +990,13 @@ describe("derivation", () => {
         }),
         initialInput: { assets: [{ id: "a1", landValue: 250 }] },
         offFormValues: { loan: { commitment: 1000 } },
-        calcEngine: makeEngine(exprs),
+        plugins: testPlugins(makeEngine(exprs)),
       });
-      const share = getValueStore(store, ["assets", 0, "share"]);
-      expect(share.derived!.value.value).toBe(0.25);
+      expect(derivedAt(store, ["assets", 0, "share"]).value).toBe(0.25);
 
       // A fresher parent record re-resolves the row
       setOffFormValues(store, { loan: { commitment: 500 } });
-      expect(share.derived!.value.value).toBe(0.5);
+      expect(derivedAt(store, ["assets", 0, "share"]).value).toBe(0.5);
     });
 
     test("should NOT see root-level document fields in row scope", () => {
@@ -975,12 +1013,12 @@ describe("derivation", () => {
           },
         }),
         initialInput: { note: "document", assets: [{ id: "a1" }] },
-        calcEngine: makeEngine(exprs),
+        plugins: testPlugins(makeEngine(exprs)),
       });
       // The server evaluates a row against its own record — a row formula
       // that reached into the document would compute a different number here
       expect(
-        getValueStore(store, ["assets", 0, "echo"]).derived!.value.value,
+        derivedAt(store, ["assets", 0, "echo"]).value,
       ).toBe("unresolved");
     });
 
@@ -1004,23 +1042,22 @@ describe("derivation", () => {
         }),
         initialInput: { assets: [{ id: "a1" }, { id: "a2" }] },
         offFormValues: { assets: [{ id: "a2", broken: 41 }] },
-        calcEngine: makeEngine(exprs),
+        plugins: testPlugins(makeEngine(exprs)),
       });
       const broken = getValueStore(store, ["assets", 0, "broken"]);
-      const dependent = getValueStore(store, ["assets", 0, "dependent"]);
-      expect(broken.derived!.value).toStrictEqual({
+      expect(derivedAt(store, ["assets", 0, "broken"])).toStrictEqual({
         value: undefined,
         error: "Division by zero",
       });
       expect(broken.errors.value).toStrictEqual(["Division by zero"]);
       // The dependent must never fall back to the canonical stored value
-      expect(dependent.derived!.value).toStrictEqual({
+      expect(derivedAt(store, ["assets", 0, "dependent"])).toStrictEqual({
         value: undefined,
         error: 'Upstream formula error: "broken"',
       });
       // …and the neighbour row is untouched — errors never cross rows
       expect(
-        getValueStore(store, ["assets", 1, "broken"]).derived!.value.error,
+        derivedAt(store, ["assets", 1, "broken"]).error,
       ).toBe("Division by zero");
     });
 
@@ -1041,19 +1078,17 @@ describe("derivation", () => {
           },
         }),
         initialInput: { rows: [{ id: "r1", a: 5, b: 10 }] },
-        calcEngine: makeEngine(exprs),
+        plugins: testPlugins(makeEngine(exprs)),
       });
-      const a = getValueStore(store, ["rows", 0, "a"]);
-      const b = getValueStore(store, ["rows", 0, "b"]);
       // Identical to the root-level break: DFS in property order cuts b's
       // edge back to a, so b resolves a through its stored input (5) and
       // carries the error, and a — whose number descends from the cut edge
       // — errors too
-      expect(b.derived!.value).toStrictEqual({
+      expect(derivedAt(store, ["rows", 0, "b"])).toStrictEqual({
         value: 6,
         error: 'Circular reference: "b" reads "a"',
       });
-      expect(a.derived!.value).toStrictEqual({
+      expect(derivedAt(store, ["rows", 0, "a"])).toStrictEqual({
         value: undefined,
         error: 'Upstream formula error: "b"',
       });
@@ -1081,7 +1116,7 @@ describe("derivation", () => {
           loan: { commitment: 1000 },
           assets: [{ id: "a1", liens: 7 }],
         },
-        calcEngine: makeEngine(rowExprs()),
+        plugins: testPlugins(makeEngine(rowExprs())),
       });
       // Root path → the document scope
       expect(resolveScopeValueAt(store, ["landValue"], "landValue")).toBe(5);
@@ -1102,7 +1137,7 @@ describe("derivation", () => {
       const store = createFormStore({
         schema: rowSchema(),
         initialInput: { assets: [{ id: "a1", landValue: 1, buildingValue: 1 }] },
-        calcEngine: makeEngine(rowExprs()),
+        plugins: testPlugins(makeEngine(rowExprs())),
       });
       // A whole-array write (the relation widgets' growth path)
       setInput(store, ["assets"], [
@@ -1110,7 +1145,7 @@ describe("derivation", () => {
         { id: "a2", landValue: 20, buildingValue: 5 },
       ]);
       expect(
-        getValueStore(store, ["assets", 1, "rowTotal"]).derived!.value.value,
+        derivedAt(store, ["assets", 1, "rowTotal"]).value,
       ).toBe(25);
 
       // …and an insert
@@ -1119,7 +1154,7 @@ describe("derivation", () => {
         initialInput: { id: "a3", landValue: 100, buildingValue: 200 },
       });
       expect(
-        getValueStore(store, ["assets", 2, "rowTotal"]).derived!.value.value,
+        derivedAt(store, ["assets", 2, "rowTotal"]).value,
       ).toBe(300);
     });
   });

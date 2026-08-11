@@ -1,5 +1,5 @@
 import { batch, untrack } from "../framework";
-import { swapMetaState } from "../meta/build-meta";
+import { dispatchSwapField } from "../plugin/driver";
 import type { InternalFieldStore, InternalFormStore } from "../types";
 import { initializeFieldStore } from "./initialize-field-store";
 
@@ -59,12 +59,16 @@ export function swapItemState(
         secondInternalFieldStore.isDirty.value;
       secondInternalFieldStore.isDirty.value = tempIsDirty;
 
-      // The meta channel travels with its row (see `copyItemState`)
+      // Per-field plugin state travels with its row (see `copyItemState`)
       if (
         firstInternalFieldStore.kind === "value" &&
         secondInternalFieldStore.kind === "value"
       ) {
-        swapMetaState(firstInternalFieldStore, secondInternalFieldStore);
+        dispatchSwapField(
+          internalFormStore,
+          firstInternalFieldStore,
+          secondInternalFieldStore,
+        );
       }
 
       // If both stores are arrays, swap array-specific state

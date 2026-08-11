@@ -1,4 +1,5 @@
 import { isSemanticEqual } from "../core/dirty";
+import { dispatchResetField } from "../core/plugin/driver";
 import { getFieldStore } from "../core/field/get-field-store";
 import { computeContainerDirty } from "../core/field/set-field-input";
 import { setInitialFieldInput } from "../core/field/set-initial-field-input";
@@ -117,21 +118,10 @@ export function reset(form: FormRef, config?: ResetConfig): void {
             fieldStore.startInput.value,
           );
 
-          // Meta channel: restore companion state to its decode-time
-          // baseline (mode, entry state, flip timestamp)
-          if (fieldStore.meta) {
-            if (fieldStore.meta.family === "source") {
-              fieldStore.mode!.value = fieldStore.meta.startMode.value;
-              fieldStore.meta.manualValue.value =
-                fieldStore.meta.startCompanion.manualValue ?? null;
-              fieldStore.meta.lastFlippedAt.value = undefined;
-            } else {
-              fieldStore.meta.entryMode.value =
-                fieldStore.meta.startEntryMode.value;
-              fieldStore.meta.percentBasis.value =
-                fieldStore.meta.startPercentBasis.value;
-            }
-          }
+          // Plugin state: each plugin restores this leaf's slot to its
+          // decode-time baseline (mode, entry state, flip timestamp) —
+          // from INSIDE the walk, so a scoped reset({path}) stays correct
+          dispatchResetField(internalFormStore, fieldStore);
 
           // Reset file inputs as they cannot be controlled
           for (const element of fieldStore.elements) {

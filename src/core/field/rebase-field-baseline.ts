@@ -1,6 +1,6 @@
 import { isPresenceEqual, isSemanticEqual } from "../dirty";
 import { createId } from "../framework";
-import { rebaseMeta } from "../meta/build-meta";
+import { dispatchRebase, unwrapLeafInput } from "../plugin/driver";
 import { containerPresence, readOwn, resolveValueInput } from "../schema-utils";
 import type {
   InternalArrayStore,
@@ -53,16 +53,16 @@ export function rebaseFieldBaseline(
       );
     }
 
-    // An array item rebases its meta channel from its OWN fresh row object
-    // (companions ride it as flat sibling keys) — the row twin of the root
-    // `rebaseMeta` call in `applyBaseline`, and like it, run AFTER the value
-    // rebase. Clean mode/entry state adopts the server's, an in-session flip
-    // survives and re-diffs against the new baseline.
+    // An array item rebases its plugin state from its OWN fresh row object
+    // (each envelope field's meta half rides the field key) — the row twin
+    // of the root rebase dispatch in `applyBaseline`, and like it, run
+    // AFTER the value rebase. Clean mode/entry state adopts the server's,
+    // an in-session flip survives and re-diffs against the new baseline.
     if (
       typeof internalFieldStore.path[internalFieldStore.path.length - 1] ===
       "number"
     ) {
-      rebaseMeta(internalFieldStore, input);
+      dispatchRebase(internalFormStore, internalFieldStore, input);
     }
 
     internalFieldStore.isDirty.value = computeContainerDirty(
@@ -73,7 +73,7 @@ export function rebaseFieldBaseline(
       internalFormStore.emptyInput,
       internalFieldStore.schema,
       internalFieldStore.isNullish,
-      input,
+      unwrapLeafInput(internalFormStore, internalFieldStore.control, input),
     );
     const wasClean = isSemanticEqual(
       internalFieldStore.input.value,

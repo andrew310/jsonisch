@@ -7,6 +7,11 @@ vi.mock("../framework", () => frameworkMocks);
 
 import { getFieldInput } from "../field/get-field-input";
 import { createFormStore } from "../form/create-form-store";
+import { companions } from "../../plugins/companions/plugin";
+import { companionsKey } from "../../plugins/companions/key";
+import { derivation } from "../../plugins/derivation/plugin";
+import { visibility } from "../../plugins/visibility/plugin";
+import type { CalcEngine } from "../types";
 import { assetsSchema, workflowFormSchema } from "../vitest/fixtures";
 import {
   createTestStore,
@@ -367,6 +372,85 @@ describe("createFormStore", () => {
       expect(store.offFormValues.value).toStrictEqual({
         appraisedAiv: 500_000,
       });
+    });
+  });
+
+  describe("plugin registration", () => {
+    const estimateSchema = objectSchema({
+      a: { type: "number" },
+      fee: {
+        type: "number",
+        "x-field-type": "computed",
+        "x-formula": "a * 2",
+      },
+    });
+
+    const noopEngine: CalcEngine = {
+      parse: () => ({ ok: true, node: null }),
+      evaluate: () => 0,
+      extractDependencies: () => [],
+    };
+
+    test("should throw when derivation is registered without companions", () => {
+      // The D2 data-loss scenario: with no mode signal the estimate pin
+      // silently never engages and the next recompute overwrites a manually
+      // pinned value — so a missing dependency is a startup error naming
+      // both plugins, not a formula bug months later
+      expect(() =>
+        createFormStore({
+          schema: estimateSchema,
+          plugins: [derivation(noopEngine)],
+        }),
+      ).toThrow(/"derivation" requires plugin "companions" earlier/);
+    });
+
+    test("should throw when companions is registered AFTER derivation", () => {
+      expect(() =>
+        createFormStore({
+          schema: estimateSchema,
+          plugins: [derivation(noopEngine), companions()],
+        }),
+      ).toThrow(/"derivation" requires plugin "companions" earlier/);
+    });
+
+    test("should throw on a duplicate plugin name", () => {
+      expect(() =>
+        createFormStore({
+          schema: estimateSchema,
+          plugins: [companions(), companions()],
+        }),
+      ).toThrow(/Duplicate jsonisch plugin name "companions"/);
+    });
+
+    test("should throw on a typo'd hook name", () => {
+      // A hook that never runs is invisible; the driver refuses instead
+      expect(() =>
+        createFormStore({
+          schema: estimateSchema,
+          plugins: [{ ...companions(), rebaseField: () => {} } as never],
+        }),
+      ).toThrow(/Unknown member "rebaseField"/);
+    });
+
+    test("should flatten falsy entries and nested arrays", () => {
+      const engine: CalcEngine | undefined = undefined;
+      const store = createFormStore({
+        schema: estimateSchema,
+        plugins: [companions(), engine && derivation(engine), [visibility()]],
+      });
+      // companions built its slot; the conditional derivation simply is not
+      // registered
+      expect(
+        companionsKey.get(store, getValueStore(store, ["fee"]))?.family,
+      ).toBe("source");
+    });
+
+    test("should build no plugin state at all without plugins", () => {
+      const store = createFormStore({ schema: estimateSchema });
+      expect(store.pluginDriver.plugins).toStrictEqual([]);
+      expect(
+        companionsKey.get(store, getValueStore(store, ["fee"])),
+      ).toBe(undefined);
     });
   });
 });

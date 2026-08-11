@@ -12,7 +12,7 @@ import { cleanup, fireEvent, render } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 import type { CalcEngine } from "../../core/types";
-import { objectSchema } from "../../core/vitest/utils";
+import { objectSchema, testPlugins } from "../../core/vitest/utils";
 import type { FieldStore, FormStore } from "../types";
 import { useField } from "../use-field";
 import { useForm } from "../use-form";
@@ -97,7 +97,7 @@ function LoanSizingForm({
   const form = useForm({
     schema,
     initialInput: { purchasePrice: 450000, rehabBudget: 50000 },
-    calcEngine: sumEngine,
+    plugins: testPlugins(sumEngine),
   });
   onForm?.(form);
   return (

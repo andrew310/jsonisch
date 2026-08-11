@@ -1,6 +1,11 @@
 import { getFieldStore } from "../field/get-field-store";
 import { createFormStore } from "../form/create-form-store";
+import { companions } from "../../plugins/companions/plugin";
+import { derivation } from "../../plugins/derivation/plugin";
+import { visibility } from "../../plugins/visibility/plugin";
+import type { PluginsInput } from "../plugin/types";
 import type {
+  CalcEngine,
   FieldElement,
   FormValidator,
   InternalArrayStore,
@@ -18,7 +23,12 @@ import type {
  */
 interface CreateTestStoreConfig {
   initialInput?: unknown;
-  companions?: Record<string, unknown>;
+  /**
+   * The calc engine the derivation plugin is registered with. Omit for a
+   * form with no derivation (companions + visibility still register — the
+   * standard trio minus the engine-dependent member).
+   */
+  engine?: CalcEngine;
   offFormValues?: Record<string, unknown>;
   emptyInput?: Record<string, unknown>;
   validator?: FormValidator;
@@ -27,7 +37,22 @@ interface CreateTestStoreConfig {
 }
 
 /**
- * Creates a form store for testing.
+ * Builds the standard first-party plugin trio in its required array order:
+ * companions first (derivation `dependsOn` it and throws otherwise),
+ * derivation only when an engine is supplied, visibility last (a WHEN
+ * watching a formula field resolves through its derived slot).
+ *
+ * @param engine The calc engine, or `undefined` for no derivation.
+ *
+ * @returns The plugins array for `createFormStore`.
+ */
+export function testPlugins(engine?: CalcEngine): PluginsInput {
+  return [companions(), engine && derivation(engine), visibility()];
+}
+
+/**
+ * Creates a form store for testing, with the standard plugin trio
+ * registered.
  *
  * @param schema The JSON-Schema for the form.
  * @param config Optional configuration for the store.
@@ -38,7 +63,8 @@ export function createTestStore(
   schema: JsonSchema,
   config: CreateTestStoreConfig = {},
 ): InternalFormStore {
-  return createFormStore({ schema, ...config });
+  const { engine, ...rest } = config;
+  return createFormStore({ schema, ...rest, plugins: testPlugins(engine) });
 }
 
 /**

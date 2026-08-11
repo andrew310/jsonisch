@@ -1,11 +1,12 @@
-import { getFieldInput } from "../field/get-field-input";
-import { readOwn } from "../schema-utils";
+import { getFieldInput } from "../../core/field/get-field-input";
+import { readOwn } from "../../core/schema-utils";
 import type {
   InternalFieldStore,
   InternalFormStore,
   InternalObjectStore,
   Path,
-} from "../types";
+} from "../../core/types";
+import { derivationKey } from "./key";
 
 /**
  * The eval-scope key the parent-record handle rides under. A row formula
@@ -158,8 +159,12 @@ export function resolveRowScopeValue(
     | undefined;
   let formValue: unknown;
   if (child) {
-    if (child.kind === "value" && child.derived) {
-      const state = child.derived.value;
+    const slot =
+      child.kind === "value"
+        ? derivationKey.get(internalFormStore, child)
+        : undefined;
+    if (slot) {
+      const state = slot.derived.value;
       formValue = state.error === null ? state.value : undefined;
     } else {
       formValue = getFieldInput(child);

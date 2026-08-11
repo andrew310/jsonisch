@@ -1,10 +1,9 @@
-import { decodeCompanions } from "../core/codec/decode-companions";
 import { decodeRecord } from "../core/codec/decode-record";
 import { rebaseFieldBaseline } from "../core/field/rebase-field-baseline";
 import { setInitialFieldInput } from "../core/field/set-initial-field-input";
 import { validateFormInput } from "../core/form/validate-form-input";
 import { batch, untrack } from "../core/framework";
-import { rebaseMeta } from "../core/meta/build-meta";
+import { dispatchRebase } from "../core/plugin/driver";
 import { type FormRef, internalOf } from "./form-ref";
 
 /**
@@ -23,7 +22,8 @@ export interface ApplyBaselineConfig {
  * Rebases a live form on a fresh server-loaded record — after a save or a
  * revalidate, the store adopts the record as its new baseline instead of
  * being torn down and rebuilt: the record decodes through the `x-column`
- * codec (values AND `<key>Source`/`<key>Hybrid` companions), clean fields
+ * codec (envelope fields keep their `{ value, source | entry }` shape for
+ * the plugin rebase), clean fields
  * take the new server value, dirty fields keep the user's in-flight edit
  * re-diffed against the new baseline (an edit equal to the fresh server
  * value becomes clean), and a later `reset()` returns to the NEW baseline.
@@ -48,19 +48,21 @@ export function applyBaseline(
   config?: ApplyBaselineConfig,
 ): void {
   const internalFormStore = internalOf(form);
-  const decoded = decodeRecord(internalFormStore.schema, record);
+  const decoded = decodeRecord(internalFormStore.schema, record, {
+    envelopes: internalFormStore.pluginDriver.envelopes,
+  });
   if (decoded === undefined) return;
-  const companions = decodeCompanions(internalFormStore.schema, record);
 
   batch(() => {
     untrack(() => {
-      // Reset-target half first, then the live rebase, then ROOT meta (its
-      // companion-less mode heuristic reads the rebased baseline value).
-      // Row meta rebases inside `rebaseFieldBaseline`, from each fresh row
-      // object's own companion keys.
+      // Reset-target half first, then the live rebase, then the ROOT
+      // plugin rebase — each plugin re-decodes its half from the same raw
+      // decoded record (envelope fields carry their meta inline). Row
+      // plugin state rebases inside `rebaseFieldBaseline`, from each fresh
+      // row object.
       setInitialFieldInput(internalFormStore, internalFormStore, decoded);
       rebaseFieldBaseline(internalFormStore, internalFormStore, decoded);
-      rebaseMeta(internalFormStore, companions);
+      dispatchRebase(internalFormStore, internalFormStore, decoded);
 
       if (config?.offFormValues) {
         internalFormStore.offFormValues.value = config.offFormValues;

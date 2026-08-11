@@ -4,7 +4,7 @@ import { setInput } from "../../../methods/set-input";
 import { setOffFormValues } from "../../../methods/set-off-form-values";
 import { createFormStore } from "../../form/create-form-store";
 import { getFieldStore } from "../../field/get-field-store";
-import { objectSchema } from "../../vitest/utils";
+import { createTestStore, objectSchema } from "../../vitest/utils";
 import type { JsonSchema } from "../../types";
 import { resolveConditionals } from "../resolve-conditionals";
 
@@ -108,8 +108,7 @@ describe("resolveConditionals", () => {
 
 describe("visibility signals", () => {
   test("gated field toggles with the watched form value", () => {
-    const form = createFormStore({
-      schema: gatedSchema(),
+    const form = createTestStore(gatedSchema(), {
       initialInput: { transaction_type: "refinance" },
     });
     const gated = getFieldStore(form, ["gated"]);
@@ -120,7 +119,7 @@ describe("visibility signals", () => {
   });
 
   test("ungated fields carry no visibility signal", () => {
-    const form = createFormStore({ schema: gatedSchema() });
+    const form = createTestStore(gatedSchema());
     expect(getFieldStore(form, ["transaction_type"]).visible).toBeUndefined();
     expect(getFieldStore(form, ["transaction_type"]).visibleWhen).toBeUndefined();
   });
@@ -138,8 +137,7 @@ describe("visibility signals", () => {
         },
       ],
     } as JsonSchema;
-    const form = createFormStore({
-      schema,
+    const form = createTestStore(schema, {
       offFormValues: { off_stage_kind: "bridge" },
     });
     const gated = getFieldStore(form, ["gated"]);
@@ -162,8 +160,7 @@ describe("visibility signals", () => {
         },
       ],
     } as JsonSchema;
-    const form = createFormStore({
-      schema,
+    const form = createTestStore(schema, {
       offFormValues: { loan: { transaction_type: "purchase" } },
     });
     expect(getFieldStore(form, ["gated"]).visible?.value).toBe(true);
@@ -189,8 +186,7 @@ describe("visibility signals", () => {
         },
       ],
     };
-    const form = createFormStore({
-      schema,
+    const form = createTestStore(schema, {
       initialInput: { features: ["rental"] },
     });
     const budget = getFieldStore(form, ["budget"]);
@@ -200,9 +196,20 @@ describe("visibility signals", () => {
     expect(budget.visible?.value).toBe(true);
   });
 
-  test("hidden field keeps its value and dirtiness while invisible", () => {
+  test("no visibility plugin means no visibility signal at all", () => {
+    // Visibility is a registered plugin now: a form built without it reads
+    // every field as always visible (the public store's `visible` default)
     const form = createFormStore({
       schema: gatedSchema(),
+      initialInput: { transaction_type: "refinance" },
+    });
+    const gated = getFieldStore(form, ["gated"]);
+    expect(gated.visible).toBeUndefined();
+    expect(gated.visibleWhen).toBeUndefined();
+  });
+
+  test("hidden field keeps its value and dirtiness while invisible", () => {
+    const form = createTestStore(gatedSchema(), {
       initialInput: { transaction_type: "purchase", gated: "kept" },
     });
     const gated = getFieldStore(form, ["gated"]);

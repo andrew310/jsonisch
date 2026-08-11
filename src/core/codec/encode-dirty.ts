@@ -1,16 +1,18 @@
 import { inferControl } from "../control";
+import type { WireContract } from "../plugin/types";
 import { isSafeKey } from "../schema-utils";
 import type { JsonSchema } from "../types";
 
 /**
- * The save payload partitioned by record geometry: real table columns,
- * `data` JSONB bag entries, and companion meta state (`<key>Source`/
- * `<key>Hybrid`, wire-compatible with today's shapes).
+ * The save payload partitioned by record geometry: real table columns and
+ * `data` JSONB bag entries. Envelope fields (`{ value, source | entry }`)
+ * always land WHOLE in `data`; an `x-column: true` envelope field also
+ * mirrors its value half into `columns` (a write-through scalar for SQL
+ * and list pages — the bag stays the source of truth).
  */
 export interface EncodedDirty {
   columns: Record<string, unknown>;
   data: Record<string, unknown>;
-  companions: Record<string, unknown>;
 }
 
 /**
@@ -25,60 +27,48 @@ export interface EncodeDirtyOptions {
    * not fail the whole save (mirrors `partitionAssetRow`).
    */
   knownColumns?: ReadonlySet<string>;
+  /**
+   * The plugins' static wire contracts (`[companionsWire, derivationWire]`
+   * for the standard trio). This function is isomorphic — the server
+   * assembles the same list from the same exported descriptors, with no
+   * form store anywhere (D7). Without contracts every declared value
+   * passes through bare.
+   */
+  wire?: readonly WireContract[];
 }
 
 /**
- * The companion suffixes that may ride alongside a declared field
- * (`<key>Source` mode state, `<key>Hybrid` amount-or-percent state).
+ * Builds the envelope-control lookup from a wire list.
  */
-const COMPANION_SUFFIXES = ["Source", "Hybrid"] as const;
-
-/**
- * Returns whether a derived-control value must be skipped: a `formula`
- * value is ALWAYS server-recomputed (a client payload only carries a stale
- * echo of the last-rendered result — mirrors the `FORMULA_FIELD_TYPES`
- * skip in `partitionAssetRow`); an `estimate` value persists exactly when
- * its `<key>Source` companion in the same payload pins `mode: "manual"` —
- * the server recompute preserves a manual-pinned value, so the client is
- * its author (LOS-461). Any other mode (formula-accepted, or a payload
- * without the companion) leaves the recompute pass as the only author.
- */
-function isSkippedDerivedValue(
-  control: string,
-  dirty: Record<string, unknown>,
-  key: string,
-): boolean {
-  if (control === "formula") return true;
-  if (control !== "estimate") return false;
-  const companion = dirty[`${key}Source`];
-  const mode =
-    companion && typeof companion === "object"
-      ? (companion as Record<string, unknown>).mode
-      : undefined;
-  return mode !== "manual";
+export function envelopeContracts(
+  wire: readonly WireContract[] | undefined,
+): ReadonlyMap<string, WireContract> {
+  const map = new Map<string, WireContract>();
+  for (const contract of wire ?? []) {
+    for (const control of contract.envelopeControls ?? []) {
+      map.set(control, contract);
+    }
+  }
+  return map;
 }
 
 /**
  * Encodes a dirty-values object (the `pickDirty`/`getDirtyInput` result)
  * into the save payload, partitioning each root key by its `x-column`
  * geometry: `x-column: true` fields become column updates, everything else
- * lands in the `data` bag. Formula-driven values are skipped — the server
- * recompute pass is their only author. Companion keys (`<key>Source`/
- * `<key>Hybrid` whose base key is a declared non-column field) are split
- * into `companions`, keeping today's wire shape. Undeclared keys —
- * including prototype-pollution keys — are dropped: the schema is the
- * allow-list at the write boundary too.
+ * lands in the `data` bag. Undeclared keys — including prototype-pollution
+ * keys — are dropped: the schema is the allow-list at the write boundary
+ * too.
  *
- * The companion keys are produced by the meta channel: a dirty
- * `<key>Source`/`<key>Hybrid` serializes into the dirty-values object
- * (`getDirtyInput`/`pickDirty`) next to its field's value.
- *
- * This function is isomorphic (no DOM): the server imports the same
- * partition for save routing and whitelist enforcement.
+ * Wire contracts carry each plugin's persistence policy (behavior
+ * relocated verbatim from LOS-461, not redesigned): `skipValue` drops a
+ * formula value (the server recompute is its only author), and an
+ * envelope contract's `encode` normalizes the outgoing envelope (an
+ * estimate value persists exactly when its meta pins `mode: "manual"`).
  *
  * @param schema The form's JSON-Schema (object schema with properties).
  * @param dirty The dirty values, or `undefined` when nothing is dirty.
- * @param options Encoding options (e.g. the server's real column set).
+ * @param options Encoding options (column set, wire contracts).
  *
  * @returns The partitioned payload, or `undefined` when nothing survives.
  */
@@ -90,52 +80,60 @@ export function encodeDirty(
   if (dirty == null) return undefined;
 
   const properties = schema.properties ?? {};
-  const declared = (key: string): JsonSchema | undefined =>
-    Object.prototype.hasOwnProperty.call(properties, key) && isSafeKey(key)
-      ? properties[key]
-      : undefined;
+  const envelopes = envelopeContracts(options.wire);
 
   const columns: Record<string, unknown> = {};
   const data: Record<string, unknown> = {};
-  const companions: Record<string, unknown> = {};
   let hasEntries = false;
 
   for (const key of Object.keys(dirty)) {
     if (!isSafeKey(key)) continue;
+    if (!Object.prototype.hasOwnProperty.call(properties, key)) continue;
 
-    const property = declared(key);
-    if (property) {
-      // Derived values are outputs — the recompute pass is their author,
-      // except a manual-pinned estimate, which the client owns
-      if (isSkippedDerivedValue(inferControl(property), dirty, key)) continue;
+    const property = properties[key];
+    const control = inferControl(property);
 
-      if (property["x-column"] === true) {
-        if (options.knownColumns && !options.knownColumns.has(key)) {
-          // Declared column with no real table column — drop just this key
-          continue;
+    // Plugin skip policy (e.g. a formula value is always server-authored)
+    if (options.wire?.some((w) => w.skipValue?.(control, dirty, key))) {
+      continue;
+    }
+
+    const isColumn = property["x-column"] === true;
+    const contract = envelopes.get(control);
+
+    if (contract) {
+      // Envelope field: normalize through the contract's server-side
+      // policy, keep the envelope WHOLE in the data bag, and mirror the
+      // value half into the column when one exists
+      const encoded = contract.encode
+        ? contract.encode(control, dirty[key])
+        : dirty[key];
+      if (encoded === undefined) continue;
+
+      data[key] = encoded;
+      if (isColumn && (!options.knownColumns || options.knownColumns.has(key))) {
+        const value = contract.unwrap
+          ? contract.unwrap(encoded).value
+          : undefined;
+        if (value !== undefined) {
+          columns[key] = value;
         }
-        columns[key] = dirty[key];
-      } else {
-        data[key] = dirty[key];
       }
       hasEntries = true;
       continue;
     }
 
-    // Companion of a declared non-column field — meta state serialized
-    // next to its field, wire-compatible with today's shapes
-    const suffix = COMPANION_SUFFIXES.find((s) => key.endsWith(s));
-    if (suffix) {
-      const base = declared(key.slice(0, -suffix.length));
-      if (base && base["x-column"] !== true) {
-        companions[key] = dirty[key];
-        hasEntries = true;
+    if (isColumn) {
+      if (options.knownColumns && !options.knownColumns.has(key)) {
+        // Declared column with no real table column — drop just this key
         continue;
       }
+      columns[key] = dirty[key];
+    } else {
+      data[key] = dirty[key];
     }
-
-    // Undeclared — dropped by the allow-list
+    hasEntries = true;
   }
 
-  return hasEntries ? { columns, data, companions } : undefined;
+  return hasEntries ? { columns, data } : undefined;
 }

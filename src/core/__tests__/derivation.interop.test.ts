@@ -8,9 +8,17 @@ import { describe, expect, test } from "vitest";
 
 import { setInput } from "../../methods/set-input";
 import { setOffFormValues } from "../../methods/set-off-form-values";
+import { derivationKey } from "../../plugins/derivation/key";
+import type { DerivationSlot } from "../../plugins/derivation/key";
 import { createFormStore } from "../form/create-form-store";
-import { getValueStore, objectSchema } from "../vitest/utils";
-import type { CalcEngine, JsonSchema } from "../types";
+import { getValueStore, objectSchema, testPlugins } from "../vitest/utils";
+import type {
+  CalcEngine,
+  DerivedState,
+  InternalFormStore,
+  JsonSchema,
+  Path,
+} from "../types";
 
 /**
  * The whole point of `CalcEngine`'s shape: the real `@rwa/formulas` exports
@@ -23,6 +31,28 @@ const engine: CalcEngine = {
   extractDependencies,
   extractPathRefs,
 };
+
+/**
+ * The derivation slot of the value field at `path` — the plugin owns
+ * `derived`/`formulaValue`/`isRollup` now, keyed by store identity.
+ */
+function derivationSlotAt(
+  form: InternalFormStore,
+  path: Path,
+): DerivationSlot | undefined {
+  return derivationKey.get(form, getValueStore(form, path));
+}
+
+/**
+ * The derived state of the field at `path` (throws when it has no slot).
+ */
+function derivedAt(form: InternalFormStore, path: Path): DerivedState {
+  const slot = derivationSlotAt(form, path);
+  if (!slot) {
+    throw new Error(`No derivation slot at ${JSON.stringify(path)}`);
+  }
+  return slot.derived.value;
+}
 
 function formulaField(formula: string): JsonSchema {
   return { type: "number", "x-field-type": "calculated", "x-formula": formula };
@@ -38,13 +68,13 @@ describe("derivation with the real @rwa/formulas engine", () => {
         contingency: formulaField("totalBudget * 0.1"),
       }),
       initialInput: { hardBudget: 100_000, softBudget: 50_000 },
-      calcEngine: engine,
+      plugins: testPlugins(engine),
     });
-    expect(getValueStore(store, ["totalBudget"]).derived!.value.value).toBe(150_000);
-    expect(getValueStore(store, ["contingency"]).derived!.value.value).toBe(15_000);
+    expect(derivedAt(store, ["totalBudget"]).value).toBe(150_000);
+    expect(derivedAt(store, ["contingency"]).value).toBe(15_000);
 
     setInput(store, ["hardBudget"], 200_000);
-    expect(getValueStore(store, ["contingency"]).derived!.value.value).toBe(25_000);
+    expect(derivedAt(store, ["contingency"]).value).toBe(25_000);
   });
 
   test("should materialize a SUM rollup over canonical collection rows and flag it", () => {
@@ -58,15 +88,14 @@ describe("derivation with the real @rwa/formulas engine", () => {
           { id: "a2", aiv: 400_000 },
         ],
       },
-      calcEngine: engine,
+      plugins: testPlugins(engine),
     });
-    const totalAiv = getValueStore(store, ["totalAiv"]);
-    expect(totalAiv.derived!.value.value).toBe(1_000_000);
-    expect(totalAiv.isRollup).toBe(true);
+    expect(derivedAt(store, ["totalAiv"]).value).toBe(1_000_000);
+    expect(derivationSlotAt(store, ["totalAiv"])?.isRollup).toBe(true);
 
     // PR #459's LOS-514 behavior: fresher canonical rows re-resolve the rollup
     setOffFormValues(store, { assets: [{ id: "a1", aiv: 750_000 }] });
-    expect(totalAiv.derived!.value.value).toBe(750_000);
+    expect(derivedAt(store, ["totalAiv"]).value).toBe(750_000);
   });
 
   test("should resolve a scalar record handle (loan[…]) from offFormValues", () => {
@@ -81,10 +110,9 @@ describe("derivation with the real @rwa/formulas engine", () => {
       }),
       initialInput: { total_loan_amount: 500_000 },
       offFormValues: { loan: { total_commitment: 600_000 } },
-      calcEngine: engine,
+      plugins: testPlugins(engine),
     });
-    const allocated = getValueStore(store, ["allocatedPercent"]);
-    expect(allocated.derived!.value.value).toBeCloseTo(0.8333, 4);
+    expect(derivedAt(store, ["allocatedPercent"]).value).toBeCloseTo(0.8333, 4);
   });
 
   test("should contain a real evaluation error to the field and recover", () => {
@@ -99,12 +127,12 @@ describe("derivation with the real @rwa/formulas engine", () => {
       }),
       initialInput: { base: 10 },
       offFormValues: { assets: [{ id: "a1", aiv: 100 }] },
-      calcEngine: engine,
+      plugins: testPlugins(engine),
     });
     const bad = getValueStore(store, ["bad"]);
-    expect(bad.derived!.value.value).toBe(undefined);
+    expect(derivedAt(store, ["bad"]).value).toBe(undefined);
     expect(bad.errors.value?.length).toBe(1);
-    expect(getValueStore(store, ["good"]).derived!.value.value).toBe(20);
+    expect(derivedAt(store, ["good"]).value).toBe(20);
   });
 
   test("should derive a per-row formula against its row + the loan handle", () => {
@@ -129,24 +157,22 @@ describe("derivation with the real @rwa/formulas engine", () => {
         // resolves from the canonical row
         assets: [{ id: "a1", estimatedAiv: 1, liens: 50_000 }],
       },
-      calcEngine: engine,
+      plugins: testPlugins(engine),
     });
     expect(
-      getValueStore(store, ["assets", 0, "allocatedPercent"]).derived!.value
-        .value,
+      derivedAt(store, ["assets", 0, "allocatedPercent"]).value,
     ).toBeCloseTo(0.25, 4);
     expect(
-      getValueStore(store, ["assets", 0, "netValue"]).derived!.value.value,
+      derivedAt(store, ["assets", 0, "netValue"]).value,
     ).toBe(250_000);
 
     // A live edit in the row wins over the canonical value
     setInput(store, ["assets", 0, "estimatedAiv"], 600_000);
     expect(
-      getValueStore(store, ["assets", 0, "allocatedPercent"]).derived!.value
-        .value,
+      derivedAt(store, ["assets", 0, "allocatedPercent"]).value,
     ).toBeCloseTo(0.5, 4);
     expect(
-      getValueStore(store, ["assets", 0, "netValue"]).derived!.value.value,
+      derivedAt(store, ["assets", 0, "netValue"]).value,
     ).toBe(550_000);
   });
 
@@ -155,10 +181,10 @@ describe("derivation with the real @rwa/formulas engine", () => {
       schema: objectSchema({
         bad: formulaField("1 +"),
       }),
-      calcEngine: engine,
+      plugins: testPlugins(engine),
     });
     const bad = getValueStore(store, ["bad"]);
-    expect(bad.derived!.value.value).toBe(undefined);
+    expect(derivedAt(store, ["bad"]).value).toBe(undefined);
     expect(bad.errors.value?.length).toBe(1);
   });
 });

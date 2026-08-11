@@ -1,10 +1,12 @@
-import { buildDerivation } from "../derivation/build-derivation";
 import { getFieldBool } from "../field/get-field-bool";
 import { initializeFieldStore } from "../field/initialize-field-store";
 import { computed, createSignal } from "../framework";
-import { buildMeta } from "../meta/build-meta";
-import { hasDirtyMeta } from "../meta/encode-companion";
-import { buildVisibility } from "../visibility/build-visibility";
+import {
+  dispatchBuild,
+  dispatchBuildScope,
+  pluginsDirty,
+  resolvePlugins,
+} from "../plugin/driver";
 import type { FormConfig, InternalFormStore } from "../types";
 
 /**
@@ -18,6 +20,13 @@ export const DEFAULT_EMPTY_INPUT: Record<string, unknown> = { string: "" };
  * the JSON-Schema once and builds the field-store tree (`kind:
  * array|object|value`), with the schema as the allow-list — `initialInput`
  * keys not declared in the schema never enter form state.
+ *
+ * Plugins are resolved and their state containers created BEFORE the walk,
+ * so the walk can dispatch `buildScope` for every array-item object it
+ * creates (a row wired by the walk behaves exactly like one built later by
+ * an insert). The ROOT scope is dispatched after the walk, in plugin array
+ * order — for the standard trio that means companions (the estimate pin's
+ * mode signal) before derivation before visibility.
  *
  * @param config The form configuration.
  *
@@ -39,13 +48,14 @@ export function createFormStore(config: FormConfig): InternalFormStore {
 
   // Set validation config (validator injected pre-compiled, once per schema)
   store.validator = config.validator;
-  // The engine must sit on the store BEFORE the walk: the walk wires each
-  // array row's derivation graph as it creates the row (see
-  // `buildRowDerivation`)
-  store.calcEngine = config.calcEngine;
   store.validate = config.validate ?? "submit";
   store.revalidate = config.revalidate ?? "input";
   store.validators = 0;
+
+  // Resolve plugins and create their state containers before the walk —
+  // duplicate names/keys, unknown hooks and missing dependencies throw here
+  store.pluginDriver = resolvePlugins(config.plugins);
+  store.pluginState = new Map();
 
   // Initialize form state signals
   store.isSubmitting = createSignal(false);
@@ -53,43 +63,32 @@ export function createFormStore(config: FormConfig): InternalFormStore {
   store.isValidating = createSignal(false);
   store.offFormValues = createSignal(config.offFormValues ?? {});
 
-  // Initialize field store hierarchy from schema
-  initializeFieldStore(
-    store as InternalFormStore,
-    store,
-    config.schema,
-    config.initialInput,
-    [],
-  );
+  const form = store as InternalFormStore;
+  dispatchBuild(form, config);
 
-  // Build the ROOT meta channel (companion decode → mode/entry state)
-  // BEFORE the root derivation graph, which reuses the estimate mode signal
-  // for its pin. Each array row's meta channel was already built by the
-  // walk itself, from the row's own companions, ahead of that row's graph.
-  buildMeta(store as InternalFormStore, config.companions);
+  // Initialize field store hierarchy from schema. Array-item objects
+  // dispatch their own `buildScope` from inside the walk.
+  initializeFieldStore(form, store, config.schema, config.initialInput, []);
 
-  // Build the ROOT derivation graph over the walked tree (`x-formula`
-  // fields become computed signals; no-op without an injected calc engine).
-  // Each array row's graph was already wired by the walk itself.
-  buildDerivation(store as InternalFormStore, config.calcEngine);
-
-  // Build conditional visibility AFTER derivation — a WHEN watching a
-  // formula field resolves through its derived signal
-  buildVisibility(store as InternalFormStore);
+  // Wire the ROOT scope's plugin passes over the walked tree, in plugin
+  // array order. The raw initial input carries every envelope field's meta
+  // half (`{ value, source | entry }`), so there is no side-channel decode.
+  dispatchBuildScope(form, form, config.initialInput);
 
   // Cache the form-level aggregates as computeds LAST, over the fully
   // built tree: the whole-tree walk runs once per invalidation, not once
   // per read (the snapshot adapter reads these on every notification).
-  // Short-circuiting is safe under computed semantics — an unread branch
-  // cannot flip the outcome while every read branch is unchanged, and any
-  // read branch changing triggers a full re-evaluation.
-  const form = store as InternalFormStore;
+  // Short-circuiting is safe under computed semantics for the FIELD walk —
+  // but the plugin fold reads every plugin unconditionally (an unran
+  // handler contributes no signal reads and would deafen the projection).
   store.aggregates = {
     isTouched: computed(() => getFieldBool(form, "isTouched")),
     isEdited: computed(() => getFieldBool(form, "isEdited")),
-    isDirty: computed(
-      () => getFieldBool(form, "isDirty") || hasDirtyMeta(form),
-    ),
+    isDirty: computed(() => {
+      const fieldsDirty = getFieldBool(form, "isDirty");
+      const pluginDirty = pluginsDirty(form);
+      return fieldsDirty || pluginDirty;
+    }),
     isValid: computed(() => !getFieldBool(form, "validationErrors")),
   };
 

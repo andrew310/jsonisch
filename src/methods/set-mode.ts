@@ -3,6 +3,8 @@ import { getFieldStore } from "../core/field/get-field-store";
 import { setFieldInput } from "../core/field/set-field-input";
 import { batch, untrack } from "../core/framework";
 import type { DerivationMode, Path } from "../core/types";
+import { companionsKey } from "../plugins/companions/key";
+import { derivationKey } from "../plugins/derivation/key";
 import { type FormRef, internalOf } from "./form-ref";
 
 /**
@@ -10,7 +12,7 @@ import { type FormRef, internalOf } from "./form-ref";
  */
 export interface SetModeOptions {
   /**
-   * The flip timestamp (ISO-8601) stamped into the companion's
+   * The flip timestamp (ISO-8601) stamped into the meta half's
    * `lastFlippedAt`. Defaults to the current time; inject for
    * deterministic tests.
    */
@@ -22,21 +24,22 @@ export interface SetModeOptions {
  * writer (a raw `mode` signal write skips value seeding and the flip
  * timestamp):
  *
- * - `estimate` → `formula`: the current input is preserved as the
- *   companion's `manualValue` and the field computes again. The derived
- *   value is NOT written into the input — derived values are outputs; the
+ * - `estimate` → `formula`: the current input is preserved as the meta
+ *   half's `manualValue` and the field computes again. The derived value
+ *   is NOT written into the input — derived values are outputs; the
  *   server recompute pass is their author.
  * - `formula` → `estimate`: the manual value is seeded from the last
  *   formula result (estimate-first chronology: when you stop trusting the
  *   formula you start from its current value and adjust), which marks the
  *   value dirty like any user edit.
  *
- * Either flip dirties the companion (`lastFlippedAt` stamped), so a flip
+ * Either flip dirties the meta half (`lastFlippedAt` stamped), so a flip
  * with no other edit still produces a payload.
  *
  * Works at any depth: an estimate field inside an array row has its own
- * meta channel, built from the row's companions (LOS-602). The throw is
- * reserved for a field that genuinely has none — a non-estimate control.
+ * companion slot, built from the row's envelope. The throw is reserved
+ * for a field that genuinely has none — a non-estimate control, or a form
+ * without the companions plugin.
  *
  * @param form The form store containing the field.
  * @param path The path to the estimate field.
@@ -51,37 +54,47 @@ export function setMode(
 ): void {
   const internalFormStore = internalOf(form);
   const store = getFieldStore(internalFormStore, path);
-  if (store.kind !== "value" || !store.mode || store.meta?.family !== "source") {
+  const slot =
+    store.kind === "value"
+      ? companionsKey.get(internalFormStore, store)
+      : undefined;
+  if (store.kind !== "value" || slot?.family !== "source") {
     throw new Error(
-      `Not an estimate field (at ${JSON.stringify(path)}) — setMode needs a field with a Source meta channel`,
+      `Not an estimate field (at ${JSON.stringify(path)}) — setMode needs a field with a source companion slot`,
     );
   }
-  const meta = store.meta;
 
   batch(() => {
     untrack(() => {
-      if (store.mode!.value === mode) return;
+      if (slot.mode.value === mode) return;
 
       if (mode === "formula") {
-        // Preserve the estimate as the companion's carried manual value —
-        // but only an EDITED value: janska's companion mirrors keystrokes,
-        // never the loaded column value, so an unedited flip carries the
-        // decoded `manualValue` forward unchanged
+        // Preserve the estimate as the meta half's carried manual value —
+        // but only an EDITED value: the meta mirrors keystrokes, never the
+        // loaded column value, so an unedited flip carries the decoded
+        // `manualValue` forward unchanged
         if (store.isDirty.value) {
-          meta.manualValue.value = isEmptyish(store.input.value)
+          slot.manualValue.value = isEmptyish(store.input.value)
             ? null
             : store.input.value;
         }
       } else {
         // Seed the estimate from the last formula result — a real edit
-        const candidate = store.formulaValue?.value;
-        if (candidate && candidate.error === null && candidate.value !== undefined) {
+        const candidate = derivationKey.get(
+          internalFormStore,
+          store,
+        )?.formulaValue.value;
+        if (
+          candidate &&
+          candidate.error === null &&
+          candidate.value !== undefined
+        ) {
           setFieldInput(internalFormStore, path, candidate.value);
         }
       }
 
-      store.mode!.value = mode;
-      meta.lastFlippedAt.value = options.now ?? new Date().toISOString();
+      slot.mode.value = mode;
+      slot.lastFlippedAt.value = options.now ?? new Date().toISOString();
     });
   });
 }

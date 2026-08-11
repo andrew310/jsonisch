@@ -1,5 +1,7 @@
+import type { PluginDriver } from "../plugin/driver";
+import type { PluginKey } from "../plugin/key";
+import type { PluginsInput } from "../plugin/types";
 import type { ReadonlySignal, Signal } from "../signal";
-import type { CalcEngine } from "./derivation";
 import type { InternalObjectStore } from "./field";
 import type { JsonSchema } from "./schema";
 
@@ -75,12 +77,14 @@ export interface FormConfig {
    */
   readonly offFormValues?: Record<string, unknown>;
   /**
-   * The decoded companion meta state (`<key>Source`/`<key>Hybrid` wire
-   * blobs, keyed by companion key) — produce it with `decodeCompanions` at
-   * the same boundary as `decodeRecord`. Seeds each field's meta channel;
-   * an estimate field's `<key>Source` decides its initial mode.
+   * The registered plugins, run in array order within each hook. Falsy
+   * entries and one level of nesting are accepted
+   * (`plugins: [companions(), engine && derivation(engine)]`). Everything
+   * computed on top of the base pipeline — companion meta state,
+   * derivation, visibility — registers here; a form without plugins is a
+   * plain schema-walked value store.
    */
-  readonly companions?: Record<string, unknown> | undefined;
+  readonly plugins?: PluginsInput | undefined;
   /**
    * The empty input a required field without an initial input starts at,
    * keyed by JSON-Schema type. Merged over the default (`{ string: "" }` —
@@ -93,13 +97,6 @@ export interface FormConfig {
    * per-form opt-in).
    */
   readonly validator?: FormValidator | undefined;
-  /**
-   * The injected calc engine (`@rwa/formulas` in the app). Enables the
-   * derivation graph: every root-level `x-formula` is parsed once at store
-   * init and its field becomes a computed signal. Without an engine no
-   * derivation is built (formula fields still walk as value leaves).
-   */
-  readonly calcEngine?: CalcEngine | undefined;
   /**
    * The validation mode of the form. Defaults to `"submit"`.
    */
@@ -153,12 +150,17 @@ export interface InternalFormStore extends InternalObjectStore {
    */
   validator: FormValidator | undefined;
   /**
-   * The injected calc engine, kept on the store so the WALK can wire a
-   * row's derivation graph: an array item created after store init (an
-   * insert, a whole-array write) must derive exactly like one the record
-   * loaded with.
+   * The resolved plugin runtime: flat plugin list, per-hook implementer
+   * lists, envelope wire contracts by control kind. Set BEFORE the walk so
+   * the walk can dispatch scope hooks for the rows it creates.
    */
-  calcEngine: CalcEngine | undefined;
+  pluginDriver: PluginDriver;
+  /**
+   * Each plugin's state container, keyed by its `PluginKey` identity
+   * (created by the plugin's `build`). Read through the exported keys
+   * (`companionsKey.get(form, store)`), never directly.
+   */
+  pluginState: Map<PluginKey<unknown>, unknown>;
   /**
    * The validation mode of the form.
    */

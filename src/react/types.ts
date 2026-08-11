@@ -3,7 +3,6 @@ import type { ControlKind } from "../core/control";
 import type {
   DerivationMode,
   DerivedState,
-  EntryMode,
   FieldElement,
   FieldErrors,
   FormConfig,
@@ -12,6 +11,7 @@ import type {
   JsonSchema,
   Path,
 } from "../core/types";
+import type { EntryMode } from "../plugins/companions/types";
 
 /**
  * The public form store returned by `useForm`/`useAppForm`: an immutable

@@ -29,8 +29,9 @@ export const workflowFormSchema: JsonSchema = {
 /**
  * A loan-stage schema slice: `x-column` columns next to data-bag fields,
  * legacy `x-field-type` values (translated to the settled vocabulary at
- * read time), and a formula field whose companions
- * (`<key>Source`/`<key>Hybrid`) ride on the record's data bag.
+ * read time), and estimate/amount-or-percent fields whose meta half rides
+ * INSIDE their own data-bag entry (the LOS-573 envelope,
+ * `{ value, source | entry }`).
  */
 export const loanStageSchema: JsonSchema = {
   type: "object",

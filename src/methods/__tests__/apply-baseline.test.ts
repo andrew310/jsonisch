@@ -13,6 +13,9 @@ import {
   objectSchema,
   staticValidator,
 } from "../../core/vitest/utils";
+import { companionsKey } from "../../plugins/companions/key";
+import type { HybridSlot, SourceSlot } from "../../plugins/companions/types";
+import type { InternalFormStore, Path } from "../../core/types";
 import { applyBaseline } from "../apply-baseline";
 import { insert, remove } from "../array-ops";
 import { getInput } from "../get-input";
@@ -216,63 +219,87 @@ describe("applyBaseline", () => {
     });
   });
 
-  describe("meta channel", () => {
+  describe("meta channel (the companions plugin's envelope half)", () => {
     const estimateSchema = objectSchema({
       price: { type: "number", "x-field-type": "computed" },
     });
 
-    test("should adopt the fresh companion mode on a clean mode", () => {
+    /**
+     * The companions slot of the field at `path` — the meta half lives in
+     * plugin state now, keyed by store identity.
+     */
+    function slotAt(form: InternalFormStore, path: Path) {
+      return companionsKey.get(form, getValueStore(form, path));
+    }
+
+    function sourceSlotAt(form: InternalFormStore, path: Path): SourceSlot {
+      const slot = slotAt(form, path);
+      if (slot?.family !== "source") throw new Error("Expected a source slot");
+      return slot;
+    }
+
+    function hybridSlotAt(form: InternalFormStore, path: Path): HybridSlot {
+      const slot = slotAt(form, path);
+      if (slot?.family !== "hybrid") throw new Error("Expected a hybrid slot");
+      return slot;
+    }
+
+    test("should adopt the fresh envelope mode on a clean mode", () => {
       const store = createTestStore(estimateSchema, {
-        initialInput: { price: 10 },
-        companions: { priceSource: { mode: "manual", manualValue: 10 } },
+        initialInput: {
+          price: { value: 10, source: { mode: "manual", manualValue: 10 } },
+        },
       });
-      const price = getValueStore(store, ["price"]);
-      expect(price.mode!.value).toBe("estimate");
+      expect(sourceSlotAt(store, ["price"]).mode.value).toBe("estimate");
 
       applyBaseline(store, {
-        data: { price: 42, priceSource: { mode: "calculated" } },
+        data: { price: { value: 42, source: { mode: "calculated" } } },
       });
 
-      expect(price.mode!.value).toBe("formula");
-      if (price.meta?.family !== "source") throw new Error("Expected source meta");
-      expect(price.meta.startMode.value).toBe("formula");
-      expect(price.input.value).toBe(42);
+      const price = sourceSlotAt(store, ["price"]);
+      expect(price.mode.value).toBe("formula");
+      expect(price.startMode.value).toBe("formula");
+      // The value half of the same envelope rebased the field's input
+      expect(getValueStore(store, ["price"]).input.value).toBe(42);
     });
 
-    test("should keep a user mode flip and turn it clean when it matches the fresh companion", () => {
+    test("should keep a user mode flip and turn it clean when it matches the fresh envelope", () => {
       const store = createTestStore(estimateSchema, {
-        initialInput: { price: 10 },
-        companions: { priceSource: { mode: "manual", manualValue: 10 } },
+        initialInput: {
+          price: { value: 10, source: { mode: "manual", manualValue: 10 } },
+        },
       });
       setMode(store, ["price"], "formula", { now: "2026-08-04T00:00:00Z" });
-      const price = getValueStore(store, ["price"]);
-      expect(price.meta!.isDirty.value).toBe(true);
+      expect(sourceSlotAt(store, ["price"]).isDirty.value).toBe(true);
 
       // The post-save echo persisted the flip
       applyBaseline(store, {
-        data: { price: 42, priceSource: { mode: "calculated" } },
+        data: { price: { value: 42, source: { mode: "calculated" } } },
       });
 
-      expect(price.mode!.value).toBe("formula");
-      expect(price.meta!.isDirty.value).toBe(false);
+      const price = sourceSlotAt(store, ["price"]);
+      expect(price.mode.value).toBe("formula");
+      expect(price.isDirty.value).toBe(false);
     });
 
-    test("should keep a user mode flip that differs from the fresh companion", () => {
+    test("should keep a user mode flip that differs from the fresh envelope", () => {
       const store = createTestStore(estimateSchema, {
-        initialInput: { price: 10 },
-        companions: { priceSource: { mode: "manual", manualValue: 10 } },
+        initialInput: {
+          price: { value: 10, source: { mode: "manual", manualValue: 10 } },
+        },
       });
       setMode(store, ["price"], "formula", { now: "2026-08-04T00:00:00Z" });
-      const price = getValueStore(store, ["price"]);
 
       applyBaseline(store, {
-        data: { price: 42, priceSource: { mode: "manual", manualValue: 42 } },
+        data: {
+          price: { value: 42, source: { mode: "manual", manualValue: 42 } },
+        },
       });
 
-      expect(price.mode!.value).toBe("formula");
-      if (price.meta?.family !== "source") throw new Error("Expected source meta");
-      expect(price.meta.startMode.value).toBe("estimate");
-      expect(price.meta.isDirty.value).toBe(true);
+      const price = sourceSlotAt(store, ["price"]);
+      expect(price.mode.value).toBe("formula");
+      expect(price.startMode.value).toBe("estimate");
+      expect(price.isDirty.value).toBe(true);
     });
 
     test("should rebase hybrid entry state per signal", () => {
@@ -281,27 +308,26 @@ describe("applyBaseline", () => {
           fee: { type: "number", "x-field-type": "hybrid" },
         }),
         {
-          initialInput: { fee: 100 },
-          companions: { feeHybrid: { mode: "fixed_amount", denominator: "" } },
+          initialInput: {
+            fee: { value: 100, entry: { mode: "fixed_amount", denominator: "" } },
+          },
         },
       );
       setEntryMode(store, ["fee"], "percent");
-      const fee = getValueStore(store, ["fee"]);
 
       applyBaseline(store, {
         data: {
-          fee: 100,
-          feeHybrid: { mode: "bps", denominator: "loanAmount" },
+          fee: { value: 100, entry: { mode: "bps", denominator: "loanAmount" } },
         },
       });
 
-      if (fee.meta?.family !== "hybrid") throw new Error("Expected hybrid meta");
-      // The user's entry-mode flip matches the fresh companion → clean
-      expect(fee.meta.entryMode.value).toBe("percent");
-      expect(fee.meta.startEntryMode.value).toBe("percent");
-      // The untouched basis adopts the fresh companion
-      expect(fee.meta.percentBasis.value).toBe("loanAmount");
-      expect(fee.meta.isDirty.value).toBe(false);
+      const fee = hybridSlotAt(store, ["fee"]);
+      // The user's entry-mode flip matches the fresh envelope → clean
+      expect(fee.entryMode.value).toBe("percent");
+      expect(fee.startEntryMode.value).toBe("percent");
+      // The untouched basis adopts the fresh envelope
+      expect(fee.percentBasis.value).toBe("loanAmount");
+      expect(fee.isDirty.value).toBe(false);
     });
   });
 

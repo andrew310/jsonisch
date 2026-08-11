@@ -1,7 +1,6 @@
 import { inferControl } from "../control";
-import { buildRowDerivation } from "../derivation/build-derivation";
 import { createId, createSignal } from "../framework";
-import { buildMeta } from "../meta/build-meta";
+import { dispatchBuildScope, unwrapLeafInput } from "../plugin/driver";
 import {
   containerPresence,
   isSafeKey,
@@ -109,18 +108,21 @@ export function initializeFieldStore(
     objectStore.startInput = createSignal(objectInput);
     objectStore.input = createSignal(objectInput);
 
-    // An ARRAY ITEM (an object addressed by an index) is a meta AND
-    // derivation scope of its own: wire both here, in the walk, so a row
-    // created by an insert or a whole-array write behaves exactly like one
-    // the record loaded with. Meta FIRST, exactly as at the root — the
-    // estimate pin in derivation reuses the mode signal the meta pass
-    // creates. The row's own object value carries its companions as flat
-    // sibling keys (`<key>Source`/`<key>Hybrid`), so it IS the companion
-    // bag. Derivation is a no-op without an injected calc engine; both are
-    // skipped for the form root (path `[]`) and plain nested objects.
+    // An ARRAY ITEM (an object addressed by an index) is a plugin scope of
+    // its own: dispatch `buildScope` here, in the walk, so a row created by
+    // an insert or a whole-array write behaves exactly like one the record
+    // loaded with. Plugins run in array order — for the standard trio the
+    // companions pass (whose mode signal the estimate pin reads) precedes
+    // derivation, exactly as at the root. The row's own raw object carries
+    // each envelope field's meta half (`{ value, source | entry }`), so it
+    // IS the scope's raw. Skipped for the form root (path `[]`, dispatched
+    // by `createFormStore` after the walk) and plain nested objects.
     if (typeof path[path.length - 1] === "number") {
-      buildMeta(objectStore as InternalObjectStore, initialInput);
-      buildRowDerivation(internalFormStore, objectStore as InternalObjectStore);
+      dispatchBuildScope(
+        internalFormStore,
+        objectStore as InternalObjectStore,
+        initialInput,
+      );
     }
     return;
   }
@@ -191,11 +193,18 @@ export function initializeFieldStore(
     const valueStore = internalFieldStore as Partial<InternalValueStore>;
     valueStore.kind = "value";
 
+    // An envelope-control leaf's raw input is the whole envelope
+    // (`{ value, source | entry }`) — the value half becomes the input;
+    // the plugin re-reads the same raw for its meta half in `buildScope`
     const valueInput = resolveValueInput(
       internalFormStore.emptyInput,
       schema,
       nullish,
-      initialInput,
+      unwrapLeafInput(
+        internalFormStore,
+        internalFieldStore.control!,
+        initialInput,
+      ),
     );
     valueStore.initialInput = createSignal(valueInput);
     valueStore.startInput = createSignal(valueInput);

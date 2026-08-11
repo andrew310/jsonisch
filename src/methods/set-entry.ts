@@ -1,21 +1,28 @@
 import { getFieldStore } from "../core/field/get-field-store";
 import { batch, untrack } from "../core/framework";
-import type { EntryMode, InternalHybridMeta, Path } from "../core/types";
+import type { Path } from "../core/types";
+import { companionsKey } from "../plugins/companions/key";
+import type { EntryMode, HybridSlot } from "../plugins/companions/types";
 import { type FormRef, internalOf } from "./form-ref";
 
-function hybridMetaOf(form: FormRef, path: Path): InternalHybridMeta {
-  const store = getFieldStore(internalOf(form), path);
-  if (store.kind !== "value" || store.meta?.family !== "hybrid") {
+function hybridSlotOf(form: FormRef, path: Path): HybridSlot {
+  const internalFormStore = internalOf(form);
+  const store = getFieldStore(internalFormStore, path);
+  const slot =
+    store.kind === "value"
+      ? companionsKey.get(internalFormStore, store)
+      : undefined;
+  if (slot?.family !== "hybrid") {
     throw new Error(
-      `Not an amount-or-percent field (at ${JSON.stringify(path)}) — needs a field with a Hybrid meta channel`,
+      `Not an amount-or-percent field (at ${JSON.stringify(path)}) — needs a field with a hybrid companion slot`,
     );
   }
-  return store.meta;
+  return slot;
 }
 
 /**
  * Sets the entry mode of an amount-or-percent field (enter a dollar
- * amount, or a percent of the percent basis). Dirties the companion; the
+ * amount, or a percent of the percent basis). Dirties the meta half; the
  * field's own value — always the resolved dollar amount — is the widget's
  * to convert and write.
  *
@@ -24,17 +31,17 @@ function hybridMetaOf(form: FormRef, path: Path): InternalHybridMeta {
  * @param mode The entry mode.
  */
 export function setEntryMode(form: FormRef, path: Path, mode: EntryMode): void {
-  const meta = hybridMetaOf(form, path);
+  const slot = hybridSlotOf(form, path);
   batch(() => {
     untrack(() => {
-      meta.entryMode.value = mode;
+      slot.entryMode.value = mode;
     });
   });
 }
 
 /**
  * Sets the percent basis of an amount-or-percent field (the loan field key
- * the percent is taken of). Dirties the companion; keeping the resolved
+ * the percent is taken of). Dirties the meta half; keeping the resolved
  * dollar amount constant against the new basis is the widget's job.
  *
  * @param form The form store containing the field.
@@ -46,10 +53,10 @@ export function setPercentBasis(
   path: Path,
   percentBasis: string,
 ): void {
-  const meta = hybridMetaOf(form, path);
+  const slot = hybridSlotOf(form, path);
   batch(() => {
     untrack(() => {
-      meta.percentBasis.value = percentBasis;
+      slot.percentBasis.value = percentBasis;
     });
   });
 }

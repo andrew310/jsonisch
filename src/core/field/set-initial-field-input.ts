@@ -1,4 +1,5 @@
 import { batch, createId } from "../framework";
+import { unwrapLeafInput } from "../plugin/driver";
 import { containerPresence, readOwn, resolveValueInput } from "../schema-utils";
 import type { InternalFieldStore, InternalFormStore } from "../types";
 import { initializeFieldStore } from "./initialize-field-store";
@@ -86,7 +87,11 @@ export function setInitialFieldInput(
         internalFormStore.emptyInput,
         internalFieldStore.schema,
         internalFieldStore.isNullish,
-        initialInput,
+        unwrapLeafInput(
+          internalFormStore,
+          internalFieldStore.control,
+          initialInput,
+        ),
       );
     }
   });

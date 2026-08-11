@@ -1,7 +1,5 @@
 import type { ReadonlySignal, Signal } from "../signal";
 import type { ControlKind } from "../control";
-import type { DerivationMode, DerivedState } from "./derivation";
-import type { InternalMetaStore } from "./meta";
 import type { Path } from "./path";
 import type { JsonSchema } from "./schema";
 import type { VisibleWhen } from "./visibility";
@@ -197,6 +195,11 @@ export interface InternalObjectStore extends InternalBaseStore {
  *
  * Inputs are `unknown` — our schemas are runtime DB data, so there is no
  * compile-time value inference.
+ *
+ * Feature state (derivation channels, companion meta, visibility beyond
+ * the base rule) lives in plugin slots keyed by this store's identity
+ * (`FieldSlotKey`), never here — core's field shape has no compile-time
+ * dependency on any feature.
  */
 export interface InternalValueStore extends InternalBaseStore {
   kind: "value";
@@ -212,54 +215,6 @@ export interface InternalValueStore extends InternalBaseStore {
    * The current input.
    */
   input: Signal<unknown>;
-  /**
-   * The derived output of a formula field: a computed signal over the
-   * deps' input signals + `offFormValues`, resolved through the single
-   * scope path — mode-aware: an estimate pin holds the field's own input.
-   * This is what dependents chain through and what the field displays.
-   * Present on any field with a parseable derivation setup (`x-formula` +
-   * injected calc engine) — root-level fields resolve in the document's
-   * scope, fields inside an array item in their ROW's (LOS-596). NEVER
-   * written back into `input`
-   * — derived values are outputs, excluded from dirty and payload by
-   * construction.
-   */
-  derived?: ReadonlySignal<DerivedState> | undefined;
-  /**
-   * The always-computed formula result, IGNORING the estimate pin — the
-   * candidate value the estimate wrapper's nudge compares against
-   * ("Calculated value available — replace estimate?") and the seed for a
-   * formula→estimate flip. Same signal object as `derived` on a plain
-   * formula field.
-   */
-  formulaValue?: ReadonlySignal<DerivedState> | undefined;
-  /**
-   * The estimate/formula mode of an estimate-control field. `estimate`
-   * holds the manual value in `input`; `formula` computes. Decoded from
-   * the `<key>Source` companion at store init (`manual` → `estimate`,
-   * `calculated` → `formula`); with no companion the field opens as
-   * `estimate` (manual-first) and the empty-estimate fall-through keeps
-   * dependents on the formula. Present at any depth — a row estimate
-   * decodes from the companion keys of its own row object (LOS-602).
-   * Write via `setMode` (the flip API), not directly: a raw write skips
-   * value seeding and the flip timestamp.
-   */
-  mode?: Signal<DerivationMode> | undefined;
-  /**
-   * The companion meta state of the field (`<key>Source` mode state on
-   * estimate fields, `<key>Hybrid` entry state on amount-or-percent
-   * fields): dirty-tracked and serialized by core, never rendered as a
-   * field. Built for root-level fields from the decoded companion bag and
-   * for array-item fields from their own row object's companion keys — the
-   * same flat convention, one scope down.
-   */
-  meta?: InternalMetaStore | undefined;
-  /**
-   * Whether the formula references a collection (`SUM(assets[…])`) —
-   * classified statically from the expression at store init. Marks the
-   * stricter-persistence set; carries no behavior in this slice.
-   */
-  isRollup?: boolean | undefined;
 }
 
 /**

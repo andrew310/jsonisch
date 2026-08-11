@@ -1,5 +1,5 @@
 import { batch, untrack } from "../framework";
-import { copyMetaState } from "../meta/build-meta";
+import { dispatchTransferField } from "../plugin/driver";
 import type { InternalFieldStore, InternalFormStore } from "../types";
 import { initializeFieldStore } from "./initialize-field-store";
 
@@ -39,13 +39,18 @@ export function copyItemState(
       toInternalFieldStore.isDirty.value =
         fromInternalFieldStore.isDirty.value;
 
-      // The meta channel travels with its row: an estimate's mode (and its
-      // companion baselines) belongs to the moving item, not the position
+      // Per-field plugin state travels with its row: an estimate's mode
+      // (and its serialization baselines) belongs to the moving item, not
+      // the position
       if (
         fromInternalFieldStore.kind === "value" &&
         toInternalFieldStore.kind === "value"
       ) {
-        copyMetaState(fromInternalFieldStore, toInternalFieldStore);
+        dispatchTransferField(
+          internalFormStore,
+          fromInternalFieldStore,
+          toInternalFieldStore,
+        );
       }
 
       // If both stores are arrays, copy array-specific state
