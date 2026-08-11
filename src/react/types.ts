@@ -1,8 +1,6 @@
 import type { ComponentType } from "react";
 import type { ControlKind } from "../core/control";
 import type {
-  DerivationMode,
-  DerivedState,
   FieldElement,
   FieldErrors,
   FormConfig,
@@ -11,7 +9,6 @@ import type {
   JsonSchema,
   Path,
 } from "../core/types";
-import type { EntryMode } from "../plugins/companions/types";
 
 /**
  * The public form store returned by `useForm`/`useAppForm`: an immutable
@@ -89,12 +86,25 @@ export interface FieldElementProps {
 }
 
 /**
+ * The plugin-contributed members of `FieldStore` — an empty marker each
+ * plugin merges its `fieldSnapshot` keys into via `declare module`
+ * augmentation IN ITS OWN FILE (fastify's decorate pattern), so widgets
+ * type-check flat members (`field.mode`, `field.setEntryMode(...)`) with
+ * no generics anywhere and ownership stays greppable. The react adapter
+ * itself knows no plugin's vocabulary; the runtime twin of this contract
+ * is `dispatchFieldSnapshot`'s collision throw.
+ */
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type -- augmentation target
+export interface FieldStoreSlots {}
+
+/**
  * The public field store returned by `useField`: an immutable snapshot —
  * a new object identity whenever any observed value changes, stable
  * otherwise. Widgets are plain controlled components that render `input`
  * and call `onChange` with the new value; no signal hook, no directive.
+ * Plugin-contributed members ride `FieldStoreSlots`.
  */
-export interface FieldStore {
+export interface FieldStore extends FieldStoreSlots {
   /**
    * The path to the field within the form.
    */
@@ -151,43 +161,6 @@ export interface FieldStore {
    * The props to spread onto the field element.
    */
   readonly props: FieldElementProps;
-  /**
-   * The mode-aware derived output of a formula/estimate field (what the
-   * field displays; an estimate pin holds the input). `undefined` on
-   * non-derived fields or without a calc engine.
-   */
-  readonly derived: DerivedState | undefined;
-  /**
-   * The always-computed formula result of a formula/estimate field,
-   * ignoring the estimate pin — the nudge's candidate value.
-   */
-  readonly formulaValue: DerivedState | undefined;
-  /**
-   * The estimate/formula mode of an estimate field, `undefined` otherwise.
-   */
-  readonly mode: DerivationMode | undefined;
-  /**
-   * Flips an estimate field's mode (see the `setMode` method — seeds the
-   * estimate from the last formula result, stamps the companion).
-   */
-  readonly setMode: (mode: DerivationMode) => void;
-  /**
-   * The entry mode of an amount-or-percent field, `undefined` otherwise.
-   */
-  readonly entryMode: EntryMode | undefined;
-  /**
-   * Sets an amount-or-percent field's entry mode (dirties the companion).
-   */
-  readonly setEntryMode: (mode: EntryMode) => void;
-  /**
-   * The percent basis of an amount-or-percent field (a loan field key).
-   */
-  readonly percentBasis: string | undefined;
-  /**
-   * Sets an amount-or-percent field's percent basis (dirties the
-   * companion).
-   */
-  readonly setPercentBasis: (percentBasis: string) => void;
 }
 
 /**

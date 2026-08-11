@@ -2,6 +2,8 @@ import { isEmptyish } from "../../core/dirty";
 import { computed, createSignal } from "../../core/framework";
 import type { JsonischPlugin, PluginCtx } from "../../core/plugin/types";
 import { readOwn } from "../../core/schema-utils";
+import { setEntryMode, setPercentBasis } from "../../methods/set-entry";
+import { setMode } from "../../methods/set-mode";
 import type {
   DerivationMode,
   InternalFieldStore,
@@ -421,7 +423,68 @@ export function companions(): JsonischPlugin<CompanionState> {
     isDirty(ctx: PluginCtx<CompanionState>) {
       return hasDirtySlot(ctx.state, ctx.form);
     },
+
+    // Live values are read fresh per tracked snapshot; the callbacks are
+    // cached on the slot so their identity is stable across snapshots
+    // (a fresh closure would defeat the snapshot equality gate)
+    fieldSnapshot(ctx, store, path) {
+      const slot = ctx.state.get(store);
+      if (!slot) return {};
+
+      if (slot.family === "source") {
+        slot.callbacks ??= {
+          setMode: (mode) => setMode(ctx.form, path, mode),
+        };
+        return { mode: slot.mode.value, setMode: slot.callbacks.setMode };
+      }
+
+      slot.callbacks ??= {
+        setEntryMode: (mode) => setEntryMode(ctx.form, path, mode),
+        setPercentBasis: (percentBasis) =>
+          setPercentBasis(ctx.form, path, percentBasis),
+      };
+      return {
+        entryMode: slot.entryMode.value,
+        percentBasis: slot.percentBasis.value,
+        setEntryMode: slot.callbacks.setEntryMode,
+        setPercentBasis: slot.callbacks.setPercentBasis,
+      };
+    },
   };
+}
+
+declare module "../../react/types" {
+  interface FieldStoreSlots {
+    /**
+     * The estimate/formula mode of an estimate field, `undefined`
+     * otherwise.
+     */
+    readonly mode: DerivationMode | undefined;
+    /**
+     * Flips an estimate field's mode (the `setMode` method — seeds the
+     * estimate from the last formula result, stamps the meta half).
+     * Contributed only for estimate fields.
+     */
+    readonly setMode: (mode: DerivationMode) => void;
+    /**
+     * The entry mode of an amount-or-percent field, `undefined` otherwise.
+     */
+    readonly entryMode: EntryMode | undefined;
+    /**
+     * Sets an amount-or-percent field's entry mode (dirties the meta
+     * half). Contributed only for amount-or-percent fields.
+     */
+    readonly setEntryMode: (mode: EntryMode) => void;
+    /**
+     * The percent basis of an amount-or-percent field (a loan field key).
+     */
+    readonly percentBasis: string | undefined;
+    /**
+     * Sets an amount-or-percent field's percent basis (dirties the meta
+     * half). Contributed only for amount-or-percent fields.
+     */
+    readonly setPercentBasis: (percentBasis: string) => void;
+  }
 }
 
 function swapSignals<T>(

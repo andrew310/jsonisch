@@ -10,6 +10,7 @@ export type {
   FieldArrayStore,
   FieldElementProps,
   FieldStore,
+  FieldStoreSlots,
   FormHookConfig,
   FormStore,
   UseAppFormConfig,

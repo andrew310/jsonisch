@@ -1,3 +1,20 @@
+// The bridge from the signal graph to React — `useField` assembles the
+// `FieldStore` snapshot a widget renders, in three parts:
+//
+//   1. TRACKED HALF (`readFieldSnapshot` via `useSignalSnapshot`): every
+//      reactive value — core flags + plugin `fieldSnapshot` contributions —
+//      read in ONE closure the library invokes. Reads inlined into a
+//      component body instead would be memoised away by React Compiler
+//      (the LOS-567 freeze); reads inside a library-owned hook cannot be.
+//   2. STABLE HALF (`useMemo`): `onChange` + DOM plumbing, identity-fixed
+//      for the field's lifetime so memoised children never re-render on
+//      handler churn.
+//   3. ASSEMBLY (`useMemo` on the tracked half): one immutable object whose
+//      identity changes exactly when an observed value did — compiler memo
+//      caches keyed on `field` miss precisely when they should.
+//
+// The adapter knows no plugin's vocabulary: what a field exposes beyond the
+// core members is the plugins' decision (LOS-604).
 import { useEffect, useMemo } from "react";
 import { getFieldBool } from "../core/field/get-field-bool";
 import { getFieldInput } from "../core/field/get-field-input";
@@ -5,43 +22,53 @@ import { getFieldStore } from "../core/field/get-field-store";
 import { setFieldBool } from "../core/field/set-field-bool";
 import { setFieldInput } from "../core/field/set-field-input";
 import { validateIfRequired } from "../core/form/validate-if-required";
+import { dispatchFieldSnapshot } from "../core/plugin/driver";
 import type {
-  DerivationMode,
   FieldElement,
   InternalFieldStore,
   InternalFormStore,
   Path,
 } from "../core/types";
-import { companionsKey } from "../plugins/companions/key";
-import type { EntryMode } from "../plugins/companions/types";
-import { derivationKey } from "../plugins/derivation/key";
-import { setEntryMode, setPercentBasis } from "../methods/set-entry";
-import { setMode } from "../methods/set-mode";
-import type { FieldStore, FormStore } from "./types";
+import type { FieldStore, FieldStoreSlots, FormStore } from "./types";
 import { useSignalSnapshot } from "./use-signal-snapshot";
+
+/**
+ * The snapshot member names owned by the adapter itself — no plugin's
+ * `fieldSnapshot` may claim one (`dispatchFieldSnapshot` throws). Covers
+ * the public `FieldStore` members plus the two internal tracked keys
+ * (`hasValidationErrors`/`autoFocus`) that feed them.
+ */
+const RESERVED_SNAPSHOT_KEYS: ReadonlySet<string> = new Set([
+  "path",
+  "name",
+  "schema",
+  "control",
+  "input",
+  "errors",
+  "isTouched",
+  "isEdited",
+  "isDirty",
+  "isValid",
+  "visible",
+  "onChange",
+  "props",
+  "hasValidationErrors",
+  "autoFocus",
+]);
 
 /**
  * Everything reactive about a field, read in one tracked pass owned by
  * `useSignalSnapshot` (never inline in a component body, so React Compiler
- * memoization cannot elide the reads).
- *
- * Feature values come from the plugin slots (companions/derivation) —
- * read through the exported keys. Interim wiring: slice 3 (LOS-604)
- * replaces these hard-coded reads with each plugin's `fieldSnapshot`
- * contribution.
+ * memoization cannot elide the reads). Plugin members merge in FLAT — at
+ * the snapshot's top level, never nested under a sub-object — so the
+ * one-extra-level value compare of `snapshotEqual` still reaches inside a
+ * recomputed result object (a `DerivedState`) and gates the re-render.
  */
 function readFieldSnapshot(
   internalFormStore: InternalFormStore,
   internalFieldStore: InternalFieldStore,
+  path: Path,
 ) {
-  const companionSlot =
-    internalFieldStore.kind === "value"
-      ? companionsKey.get(internalFormStore, internalFieldStore)
-      : undefined;
-  const derivationSlot =
-    internalFieldStore.kind === "value"
-      ? derivationKey.get(internalFormStore, internalFieldStore)
-      : undefined;
   return {
     input: getFieldInput(internalFieldStore),
     errors: internalFieldStore.errors.value,
@@ -56,18 +83,12 @@ function readFieldSnapshot(
         : (internalFieldStore.visible?.value ?? true),
     // Focus-on-error is for errors the user can fix — never a calc error
     autoFocus: !!internalFieldStore.validationErrors.value,
-    derived: derivationSlot?.derived.value,
-    formulaValue: derivationSlot?.formulaValue.value,
-    mode:
-      companionSlot?.family === "source" ? companionSlot.mode.value : undefined,
-    entryMode:
-      companionSlot?.family === "hybrid"
-        ? companionSlot.entryMode.value
-        : undefined,
-    percentBasis:
-      companionSlot?.family === "hybrid"
-        ? companionSlot.percentBasis.value
-        : undefined,
+    ...(dispatchFieldSnapshot(
+      internalFormStore,
+      internalFieldStore,
+      path,
+      RESERVED_SNAPSHOT_KEYS,
+    ) as Partial<FieldStoreSlots>),
   };
 }
 
@@ -115,29 +136,22 @@ export function useField(form: FormStore, path: Path): FieldStore {
     };
   }, [internalFieldStore]);
 
+  // `path` is captured by the tracked compute under the store-keyed deps —
+  // safe because field stores are position-fixed: a store's path content
+  // never changes for its lifetime (array ops move values, not stores).
   const reactive = useSignalSnapshot(
-    () => readFieldSnapshot(internalFormStore, internalFieldStore),
+    () => readFieldSnapshot(internalFormStore, internalFieldStore, path),
     [internalFormStore, internalFieldStore],
   );
 
   // Callbacks and DOM plumbing: identity-stable for the field's lifetime.
-  // `path` and `form` are captured — safe because every consumer only
-  // reaches the stable `form.internal` / an equal-content path through them.
+  // `path` is captured — safe for the same position-fixed reason as above.
   const stable = useMemo(
     () => ({
       onChange(value: unknown) {
         setFieldInput(internalFormStore, path, value);
         validateIfRequired(internalFormStore, internalFieldStore, "input");
         validateIfRequired(internalFormStore, internalFieldStore, "change");
-      },
-      setMode(mode: DerivationMode) {
-        setMode(form, path, mode);
-      },
-      setEntryMode(mode: EntryMode) {
-        setEntryMode(form, path, mode);
-      },
-      setPercentBasis(percentBasis: string) {
-        setPercentBasis(form, path, percentBasis);
       },
       props: {
         name: internalFieldStore.name,
@@ -164,31 +178,20 @@ export function useField(form: FormStore, path: Path): FieldStore {
 
   // New identity whenever anything observed changed — this is what makes
   // React Compiler memoization correct instead of fatal.
-  return useMemo(
-    () => ({
+  return useMemo(() => {
+    // Plugin-contributed members ride `rest`; the runtime collision guard
+    // in `dispatchFieldSnapshot` is what makes the spread + cast sound.
+    const { hasValidationErrors, autoFocus, ...rest } = reactive;
+    return {
       path,
       name: internalFieldStore.name,
       schema: internalFieldStore.schema,
       control: internalFieldStore.control,
-      input: reactive.input,
-      errors: reactive.errors,
-      isTouched: reactive.isTouched,
-      isEdited: reactive.isEdited,
-      isDirty: reactive.isDirty,
-      isValid: !reactive.hasValidationErrors,
-      visible: reactive.visible,
-      derived: reactive.derived,
-      formulaValue: reactive.formulaValue,
-      mode: reactive.mode,
-      entryMode: reactive.entryMode,
-      percentBasis: reactive.percentBasis,
+      ...rest,
+      isValid: !hasValidationErrors,
       onChange: stable.onChange,
-      setMode: stable.setMode,
-      setEntryMode: stable.setEntryMode,
-      setPercentBasis: stable.setPercentBasis,
-      props: { ...stable.props, autoFocus: reactive.autoFocus },
-    }),
+      props: { ...stable.props, autoFocus },
+    } as FieldStore;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [reactive, stable],
-  );
+  }, [reactive, stable]);
 }

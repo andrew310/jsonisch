@@ -3,6 +3,7 @@ import type {
   InternalFormStore,
   InternalObjectStore,
   InternalValueStore,
+  Path,
 } from "../types";
 import type { FormConfig } from "../types/form";
 import type { PluginKey } from "./key";
@@ -198,6 +199,22 @@ export interface JsonischPlugin<TState = unknown> {
    * signal reads and deafens the projection).
    */
   isDirty?(ctx: PluginCtx<TState>): boolean;
+
+  /**
+   * 11 — members merged into the react field snapshot, computed inside the
+   * library-owned tracked read (the D5 snapshot model): plain values read
+   * off signals — never getters — plus identity-stable callbacks (a fresh
+   * closure per call would defeat the snapshot equality gate and re-render
+   * every notification; cache them on the plugin's per-field state). Types
+   * ride the `FieldStoreSlots` declare-module augmentation in the plugin's
+   * own file. A key claimed twice, or colliding with a core field member,
+   * throws.
+   */
+  fieldSnapshot?(
+    ctx: PluginCtx<TState>,
+    store: InternalFieldStore,
+    path: Path,
+  ): Record<string, unknown>;
 }
 
 /**

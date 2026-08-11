@@ -3,6 +3,7 @@ import type {
   InternalFormStore,
   InternalObjectStore,
   InternalValueStore,
+  Path,
 } from "../types";
 import type { FormConfig } from "../types/form";
 import type { PluginKey } from "./key";
@@ -27,6 +28,7 @@ const KNOWN_MEMBERS = new Set([
   "fieldIsDirty",
   "encodeValue",
   "isDirty",
+  "fieldSnapshot",
 ]);
 
 /**
@@ -43,6 +45,7 @@ const HOOK_NAMES = [
   "fieldIsDirty",
   "encodeValue",
   "isDirty",
+  "fieldSnapshot",
 ] as const;
 
 type HookName = (typeof HOOK_NAMES)[number];
@@ -381,6 +384,51 @@ export function encodeFieldValue(
     result = wrapped;
   }
   return result;
+}
+
+/**
+ * Merges every plugin's `fieldSnapshot` contribution for one field into a
+ * single flat object — the fastify-decorate collision rule: a key already
+ * claimed (by another plugin, or by a core field member via `reserved`)
+ * throws instead of silently shadowing. Runs inside the react adapter's
+ * tracked read, so contributions' signal reads subscribe the component.
+ *
+ * @param form The form store.
+ * @param store The field store being snapshotted.
+ * @param path The field's path (for callback contributions).
+ * @param reserved The core snapshot member names no plugin may claim.
+ *
+ * @returns The merged plugin members, flat.
+ */
+export function dispatchFieldSnapshot(
+  form: InternalFormStore,
+  store: InternalFieldStore,
+  path: Path,
+  reserved: ReadonlySet<string>,
+): Record<string, unknown> {
+  const slots: Record<string, unknown> = {};
+  const claimedBy = new Map<string, string>();
+  for (const plugin of form.pluginDriver?.hooks.fieldSnapshot ?? []) {
+    const contribution = attributed(plugin, "fieldSnapshot", () =>
+      plugin.fieldSnapshot!(ctxOf(form, plugin), store, path),
+    );
+    for (const key of Object.keys(contribution)) {
+      if (reserved.has(key)) {
+        throw new Error(
+          `Jsonisch plugin "${plugin.name}" contributes the fieldSnapshot key "${key}", which is a core field member`,
+        );
+      }
+      const owner = claimedBy.get(key);
+      if (owner !== undefined) {
+        throw new Error(
+          `Jsonisch plugins "${owner}" and "${plugin.name}" both contribute the fieldSnapshot key "${key}"`,
+        );
+      }
+      claimedBy.set(key, plugin.name);
+      slots[key] = contribution[key];
+    }
+  }
+  return slots;
 }
 
 /**

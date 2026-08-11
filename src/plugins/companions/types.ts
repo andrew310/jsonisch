@@ -71,6 +71,16 @@ export interface SourceSlot {
    * estimate value did (an estimate keystroke dirties the meta with it).
    */
   readonly isDirty: ReadonlySignal<boolean>;
+  /**
+   * The identity-stable react callbacks the plugin's `fieldSnapshot`
+   * contributes, created lazily on first snapshot — a fresh closure per
+   * snapshot would defeat the equality gate and re-render every
+   * notification. Bound to form + path, which is safe because stores are
+   * position-fixed (array ops move values, not stores).
+   */
+  callbacks?: {
+    readonly setMode: (mode: DerivationMode) => void;
+  };
 }
 
 /**
@@ -100,6 +110,13 @@ export interface HybridSlot {
    * Whether the meta half must serialize (entry mode or basis changed).
    */
   readonly isDirty: ReadonlySignal<boolean>;
+  /**
+   * The identity-stable react callbacks (see `SourceSlot.callbacks`).
+   */
+  callbacks?: {
+    readonly setEntryMode: (mode: EntryMode) => void;
+    readonly setPercentBasis: (percentBasis: string) => void;
+  };
 }
 
 /**
