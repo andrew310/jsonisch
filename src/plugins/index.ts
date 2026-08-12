@@ -11,9 +11,12 @@ export {
 } from "./envelopes/wire";
 export type { EnvelopeKind } from "./envelopes/wire";
 export type {
+  Envelope,
   EnvelopeSlot,
   EntryMeta,
   EntryMode,
+  EstimateEnvelope,
+  HybridEnvelope,
   HybridSlot,
   SourceMeta,
   SourceSlot,

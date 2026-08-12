@@ -1,8 +1,24 @@
 import { batch, createId } from "../framework";
-import { unwrapLeafInput } from "../plugin/driver";
+import { dispatchSyncInitial, unwrapLeafInput } from "../plugin/driver";
 import { containerPresence, readOwn, resolveValueInput } from "../schema-utils";
-import type { InternalFieldStore, InternalFormStore } from "../types";
+import type {
+  InternalFieldStore,
+  InternalFormStore,
+  InternalValueStore,
+} from "../types";
 import { initializeFieldStore } from "./initialize-field-store";
+
+/**
+ * Options for `setInitialFieldInput`.
+ */
+export interface SetInitialFieldInputOptions {
+  /**
+   * Re-decode plugin start baselines from the same raw. `reset({
+   * initialInput })` sets this so number and mode come from one object.
+   * `applyBaseline` omits it — rebase owns that adopt.
+   */
+  readonly syncInitial?: boolean | undefined;
+}
 
 /**
  * Sets the initial input (the reset target) for a field store and all its
@@ -18,6 +34,7 @@ export function setInitialFieldInput(
   internalFormStore: InternalFormStore,
   internalFieldStore: InternalFieldStore,
   initialInput: unknown,
+  options?: SetInitialFieldInputOptions,
 ): void {
   batch(() => {
     if (internalFieldStore.kind === "array") {
@@ -65,6 +82,7 @@ export function setInitialFieldInput(
           internalFormStore,
           internalFieldStore.children[index],
           initialArrayInput[index],
+          options,
         );
       }
     } else if (internalFieldStore.kind === "object") {
@@ -78,6 +96,7 @@ export function setInitialFieldInput(
           internalFormStore,
           internalFieldStore.children[key],
           readOwn(initialInput, key),
+          options,
         );
       }
     } else {
@@ -93,6 +112,13 @@ export function setInitialFieldInput(
           initialInput,
         ),
       );
+      if (options?.syncInitial) {
+        dispatchSyncInitial(
+          internalFormStore,
+          internalFieldStore as InternalValueStore,
+          initialInput,
+        );
+      }
     }
   });
 }

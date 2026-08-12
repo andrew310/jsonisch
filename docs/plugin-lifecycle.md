@@ -26,6 +26,8 @@ Later dispatches, each from its pinned core site:
 | `reseedScope` | `resetItemState` (row reuse/regrow) | re-seed slots in place — computeds keep tracking |
 | `rebase` | `applyBaseline` (root) + `rebaseFieldBaseline` (rows), AFTER the value rebase | baselines adopt fresh meta; live signals only when clean |
 | `resetField` | inside `reset`'s walk | restore slots to decode-time baseline (scoped resets free) |
+| `syncInput` | `setFieldInput` leaf write | plugin writes `store.input` + its slot (`writeEnvelope`); return true to skip core's write |
+| `syncInitial` | `reset({ initialInput })` via `setInitialFieldInput` | re-decode start envelope from the same raw |
 | `transferField` / `swapField` | `copyItemState` / `swapItemState` | per-field slots travel with rows (stores are position-fixed) |
 | `fieldIsDirty` / `isDirty` | dirty walks / the aggregate | payload emission + Save enablement |
 | `encodeValue` | dirty encoding (`getDirtyFieldInput`/`pickDirty`/`encodeScopeValues`) | wrap your own key — the LOS-573 envelope |

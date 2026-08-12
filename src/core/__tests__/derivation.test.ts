@@ -7,6 +7,7 @@ import { getDirtyPaths } from "../../methods/get-dirty-paths";
 import { setErrors } from "../../methods/errors";
 import { setInput } from "../../methods/set-input";
 import { setOffFormValues } from "../../methods/set-off-form-values";
+import { writeEnvelope } from "../../plugins/envelopes/envelope";
 import { envelopesKey } from "../../plugins/envelopes/key";
 import type { SourceSlot } from "../../plugins/envelopes/types";
 import { derivationKey } from "../../plugins/derivation/key";
@@ -737,12 +738,19 @@ describe("derivation", () => {
         initialInput: { a: 10, fee: 1234 },
         plugins: testPlugins(makeEngine(exprs)),
       });
-      // Derivation reads the mode through the envelopes slot — the pin
-      // engages off THAT signal, not off a member of the field store
-      const mode = sourceSlotAt(store, ["fee"])!.mode;
-      mode.value = "formula";
+      // Derivation reads mode as a computed over envelope.mode — flip the
+      // envelope (not a field-store member) and the pin follows
+      const fee = getValueStore(store, ["fee"]);
+      const slot = sourceSlotAt(store, ["fee"])!;
+      writeEnvelope(store, fee, slot, {
+        ...slot.envelope.value,
+        mode: "formula",
+      });
       expect(derivedAt(store, ["fee"]).value).toBe(20);
-      mode.value = "estimate";
+      writeEnvelope(store, fee, slot, {
+        ...slot.envelope.value,
+        mode: "estimate",
+      });
       expect(derivedAt(store, ["fee"]).value).toBe(1234);
     });
   });

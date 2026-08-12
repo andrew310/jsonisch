@@ -1,4 +1,4 @@
-import { isEmptyish } from "../../core/dirty";
+import { isEmptyish, isSemanticEqual } from "../../core/dirty";
 import { computed, createSignal } from "../../core/framework";
 import type { JsonischPlugin, PluginCtx } from "../../core/plugin/types";
 import { readOwn } from "../../core/schema-utils";
@@ -7,15 +7,26 @@ import { setMode } from "../../methods/set-mode";
 import type {
   DerivationMode,
   InternalFieldStore,
+  InternalFormStore,
   InternalObjectStore,
   InternalValueStore,
 } from "../../core/types";
+import {
+  adoptEnvelope,
+  bindAdopted,
+  decodeHybridEnvelope,
+  decodeSourceEnvelope,
+  resolveSourceMode,
+  syncHybridInput,
+  syncSourceInput,
+  writeEnvelope,
+} from "./envelope";
 import { envelopesKey } from "./key";
 import { envelopesWire, wrapEstimate, wrapHybrid } from "./wire";
 import type {
   EnvelopeSlot,
-  EntryMeta,
   EntryMode,
+  EstimateEnvelope,
   HybridSlot,
   SourceMeta,
   SourceSlot,
@@ -28,48 +39,6 @@ import type {
 export type EnvelopeState = Map<InternalFieldStore, EnvelopeSlot>;
 
 /**
- * Reads a field's meta half out of its scope's raw value: the raw is the
- * decoded record at the root and the row's own object inside an array —
- * one convention at every depth, because the envelope rides the field key
- * itself (`myField: { kind, value?, mode, … }`).
- */
-function rawMetaOf(raw: unknown, key: string): Record<string, unknown> {
-  return envelopesWire.unwrap!(readOwn(raw, key)).meta;
-}
-
-/**
- * Resolves the mode a persisted estimate meta decodes to: the persisted
- * meta wins; without one the field opens as `estimate` — the manual-first
- * default (LOS-461), so a fresh field is always typeable. An EMPTY
- * estimate silently defers to the formula (derivation + server recompute
- * both fall through), and a typed estimate pins with `mode: "estimate"`
- * on save.
- */
-function resolveSourceMode(meta: SourceMeta): DerivationMode {
-  return meta.mode === "formula" ? "formula" : "estimate";
-}
-
-/**
- * Resolves the entry state a persisted hybrid meta decodes to, falling
- * back to the schema's declared default denominator.
- */
-function resolveHybridEntry(
-  meta: EntryMeta,
-  schema: InternalValueStore["schema"],
-): { entryMode: EntryMode; percentBasis: string | undefined } {
-  const schemaDefault = schema["x-hybrid-default-denominator"];
-  return {
-    entryMode: meta.mode === "percent" ? "percent" : "amount",
-    percentBasis:
-      typeof meta.basis === "string"
-        ? meta.basis
-        : typeof schemaDefault === "string" && schemaDefault !== ""
-          ? schemaDefault
-          : undefined,
-  };
-}
-
-/**
  * Builds (or re-seeds) the slots of ONE object scope — the document root
  * or a single array row. Idempotent: called again on a REUSED store (an
  * array shrink-then-regrow, a rebuilt row) it re-seeds the existing
@@ -77,6 +46,7 @@ function resolveHybridEntry(
  * to the mode signal keep tracking it.
  */
 function buildScopeSlots(
+  form: InternalFormStore,
   state: EnvelopeState,
   scope: InternalObjectStore,
   raw: unknown,
@@ -86,83 +56,83 @@ function buildScopeSlots(
     if (child.kind !== "value") continue;
 
     if (child.control === "estimate") {
-      buildSourceSlot(state, child, rawMetaOf(raw, key) as SourceMeta);
+      buildSourceSlot(form, state, child, readOwn(raw, key));
     } else if (child.control === "amount-or-percent") {
-      buildHybridSlot(state, child, rawMetaOf(raw, key) as EntryMeta);
+      buildHybridSlot(form, state, child, readOwn(raw, key));
     }
   }
 }
 
+function sourceDirty(live: EstimateEnvelope, start: EstimateEnvelope): boolean {
+  return (
+    resolveSourceMode(live) !== resolveSourceMode(start) ||
+    (resolveSourceMode(live) === "estimate" &&
+      !isSemanticEqual(live.value, start.value))
+  );
+}
+
 function buildSourceSlot(
+  form: InternalFormStore,
   state: EnvelopeState,
   store: InternalValueStore,
-  meta: SourceMeta,
+  raw: unknown,
 ): void {
-  const initialMode = resolveSourceMode(meta);
+  const decoded = decodeSourceEnvelope(form, store, raw);
 
   const existing = state.get(store);
   if (existing?.family === "source") {
-    existing.startMeta = meta;
-    existing.startMode.value = initialMode;
-    existing.mode.value = initialMode;
-    existing.manualValue.value = meta.manualValue ?? null;
-    existing.lastFlippedAt.value = undefined;
+    existing.startEnvelope.value = decoded;
+    writeEnvelope(form, store, existing, decoded);
     return;
   }
 
-  const mode = createSignal<DerivationMode>(initialMode);
-  const startMode = createSignal<DerivationMode>(initialMode);
+  const envelope = createSignal<EstimateEnvelope>(decoded);
+  const startEnvelope = createSignal<EstimateEnvelope>(decoded);
 
   const slot: SourceSlot = {
     family: "source",
-    mode,
-    startMode,
-    manualValue: createSignal<unknown>(meta.manualValue ?? null),
-    lastFlippedAt: createSignal<string | undefined>(undefined),
-    startMeta: meta,
-    isDirty: computed<boolean>(
-      () =>
-        mode.value !== startMode.value ||
-        // An estimate keystroke mirrors into the meta half — a value edit
-        // in estimate mode dirties the meta with it
-        (mode.value === "estimate" && store.isDirty.value),
+    envelope,
+    startEnvelope,
+    mode: computed<DerivationMode>(() => resolveSourceMode(envelope.value)),
+    manualValue: computed<unknown>(() => envelope.value.manualValue ?? null),
+    lastFlippedAt: computed<string | undefined>(
+      () => envelope.value.lastFlippedAt,
+    ),
+    isDirty: computed<boolean>(() =>
+      sourceDirty(envelope.value, startEnvelope.value),
     ),
   };
   state.set(store, slot);
 }
 
 function buildHybridSlot(
+  form: InternalFormStore,
   state: EnvelopeState,
   store: InternalValueStore,
-  meta: EntryMeta,
+  raw: unknown,
 ): void {
-  const { entryMode: initialEntryMode, percentBasis: initialBasis } =
-    resolveHybridEntry(meta, store.schema);
+  const decoded = decodeHybridEnvelope(form, store, raw);
 
   const existing = state.get(store);
   if (existing?.family === "hybrid") {
-    existing.entryMode.value = initialEntryMode;
-    existing.startEntryMode.value = initialEntryMode;
-    existing.percentBasis.value = initialBasis;
-    existing.startPercentBasis.value = initialBasis;
+    existing.startEnvelope.value = decoded;
+    writeEnvelope(form, store, existing, decoded);
     return;
   }
 
-  const entryMode = createSignal<EntryMode>(initialEntryMode);
-  const startEntryMode = createSignal<EntryMode>(initialEntryMode);
-  const percentBasis = createSignal<string | undefined>(initialBasis);
-  const startPercentBasis = createSignal<string | undefined>(initialBasis);
+  const envelope = createSignal(decoded);
+  const startEnvelope = createSignal(decoded);
 
   const slot: HybridSlot = {
     family: "hybrid",
-    entryMode,
-    startEntryMode,
-    percentBasis,
-    startPercentBasis,
+    envelope,
+    startEnvelope,
+    entryMode: computed<EntryMode>(() => envelope.value.mode),
+    percentBasis: computed<string | undefined>(() => envelope.value.basis),
     isDirty: computed<boolean>(
       () =>
-        entryMode.value !== startEntryMode.value ||
-        percentBasis.value !== startPercentBasis.value,
+        envelope.value.mode !== startEnvelope.value.mode ||
+        envelope.value.basis !== startEnvelope.value.basis,
     ),
   };
   state.set(store, slot);
@@ -170,12 +140,11 @@ function buildHybridSlot(
 
 /**
  * Rebases one scope's slots onto fresh raw data — the meta half of
- * `applyBaseline`, following the same clean-vs-dirty rule as values: the
- * decode-time baselines always move to the fresh meta; the live signals
- * move with them only when they were clean, so a user's in-session mode
- * flip or entry-state change survives a save round-trip.
+ * `applyBaseline`. `adoptEnvelope` keeps per-channel clean-vs-dirty, then
+ * `writeEnvelope` runs once.
  */
 function rebaseScopeSlots(
+  form: InternalFormStore,
   state: EnvelopeState,
   scope: InternalObjectStore,
   raw: unknown,
@@ -187,42 +156,23 @@ function rebaseScopeSlots(
     if (!slot) continue;
 
     if (slot.family === "source") {
-      rebaseSourceSlot(slot, rawMetaOf(raw, key) as SourceMeta);
+      const incoming = decodeSourceEnvelope(form, child, readOwn(raw, key));
+      bindAdopted(
+        form,
+        child,
+        slot,
+        adoptEnvelope(slot.envelope.value, slot.startEnvelope.value, incoming),
+      );
     } else {
-      rebaseHybridSlot(child, slot, rawMetaOf(raw, key) as EntryMeta);
+      const incoming = decodeHybridEnvelope(form, child, readOwn(raw, key));
+      bindAdopted(
+        form,
+        child,
+        slot,
+        adoptEnvelope(slot.envelope.value, slot.startEnvelope.value, incoming),
+      );
     }
   }
-}
-
-function rebaseSourceSlot(slot: SourceSlot, meta: SourceMeta): void {
-  const newMode = resolveSourceMode(meta);
-  const modeClean = slot.mode.value === slot.startMode.value;
-
-  slot.startMeta = meta;
-  slot.startMode.value = newMode;
-  if (modeClean) {
-    slot.mode.value = newMode;
-    slot.manualValue.value = meta.manualValue ?? null;
-    slot.lastFlippedAt.value = undefined;
-  }
-}
-
-function rebaseHybridSlot(
-  store: InternalValueStore,
-  slot: HybridSlot,
-  meta: EntryMeta,
-): void {
-  const { entryMode, percentBasis } = resolveHybridEntry(meta, store.schema);
-
-  if (slot.entryMode.value === slot.startEntryMode.value) {
-    slot.entryMode.value = entryMode;
-  }
-  slot.startEntryMode.value = entryMode;
-
-  if (slot.percentBasis.value === slot.startPercentBasis.value) {
-    slot.percentBasis.value = percentBasis;
-  }
-  slot.startPercentBasis.value = percentBasis;
 }
 
 /**
@@ -236,7 +186,9 @@ function encodeSourceMeta(
   store: InternalValueStore,
   slot: SourceSlot,
 ): SourceMeta {
-  const mode = slot.mode.value;
+  const live = slot.envelope.value;
+  const start = slot.startEnvelope.value;
+  const mode = resolveSourceMode(live);
   const meta: SourceMeta = {
     mode,
     manualValue:
@@ -245,10 +197,10 @@ function encodeSourceMeta(
           ? isEmptyish(store.input.value)
             ? null
             : store.input.value
-          : (slot.startMeta.manualValue ?? null)
-        : (slot.manualValue.value ?? null),
+          : (start.manualValue ?? null)
+        : (live.manualValue ?? null),
   };
-  const flippedAt = slot.lastFlippedAt.value ?? slot.startMeta.lastFlippedAt;
+  const flippedAt = live.lastFlippedAt ?? start.lastFlippedAt;
   if (flippedAt !== undefined) {
     meta.lastFlippedAt = flippedAt;
   }
@@ -299,30 +251,60 @@ export function envelopes(): JsonischPlugin<EnvelopeState> {
     build: () => new Map(),
 
     buildScope(ctx, scope, raw) {
-      buildScopeSlots(ctx.state, scope, raw);
+      buildScopeSlots(ctx.form, ctx.state, scope, raw);
     },
 
     // A reused row store adopting a different row re-seeds in place — the
     // same idempotent body
     reseedScope(ctx, scope, raw) {
-      buildScopeSlots(ctx.state, scope, raw);
+      buildScopeSlots(ctx.form, ctx.state, scope, raw);
     },
 
     resetField(ctx, store) {
+      if (store.kind !== "value") return;
       const slot = ctx.state.get(store);
       if (!slot) return;
+      // Overlay start meta onto the value the reset walk already wrote
+      // (`keepInput` keeps the live number; otherwise that write is the
+      // start value).
       if (slot.family === "source") {
-        slot.mode.value = slot.startMode.value;
-        slot.manualValue.value = slot.startMeta.manualValue ?? null;
-        slot.lastFlippedAt.value = undefined;
+        writeEnvelope(ctx.form, store, slot, {
+          ...slot.startEnvelope.value,
+          value: store.input.value,
+        });
       } else {
-        slot.entryMode.value = slot.startEntryMode.value;
-        slot.percentBasis.value = slot.startPercentBasis.value;
+        writeEnvelope(ctx.form, store, slot, {
+          ...slot.startEnvelope.value,
+          value: store.input.value,
+        });
       }
     },
 
     rebase(ctx, scope, raw) {
-      rebaseScopeSlots(ctx.state, scope, raw);
+      rebaseScopeSlots(ctx.form, ctx.state, scope, raw);
+    },
+
+    syncInput(ctx, store, input) {
+      if (store.kind !== "value") return false;
+      const slot = ctx.state.get(store);
+      if (!slot) return false;
+      if (slot.family === "source") {
+        syncSourceInput(ctx.form, store, slot, input);
+      } else {
+        syncHybridInput(ctx.form, store, slot, input);
+      }
+      return true;
+    },
+
+    syncInitial(ctx, store, raw) {
+      if (store.kind !== "value") return;
+      const slot = ctx.state.get(store);
+      if (!slot) return;
+      if (slot.family === "source") {
+        slot.startEnvelope.value = decodeSourceEnvelope(ctx.form, store, raw);
+      } else {
+        slot.startEnvelope.value = decodeHybridEnvelope(ctx.form, store, raw);
+      }
     },
 
     // The meta channel travels with its row through insert/remove/move,
@@ -336,16 +318,11 @@ export function envelopes(): JsonischPlugin<EnvelopeState> {
       if (!source || !target || source.family !== target.family) return;
 
       if (source.family === "source" && target.family === "source") {
-        target.startMeta = source.startMeta;
-        target.startMode.value = source.startMode.value;
-        target.manualValue.value = source.manualValue.value;
-        target.lastFlippedAt.value = source.lastFlippedAt.value;
-        target.mode.value = source.mode.value;
+        target.startEnvelope.value = source.startEnvelope.value;
+        target.envelope.value = source.envelope.value;
       } else if (source.family === "hybrid" && target.family === "hybrid") {
-        target.entryMode.value = source.entryMode.value;
-        target.startEntryMode.value = source.startEntryMode.value;
-        target.percentBasis.value = source.percentBasis.value;
-        target.startPercentBasis.value = source.startPercentBasis.value;
+        target.startEnvelope.value = source.startEnvelope.value;
+        target.envelope.value = source.envelope.value;
       }
     },
 
@@ -355,18 +332,11 @@ export function envelopes(): JsonischPlugin<EnvelopeState> {
       if (!a || !b || a.family !== b.family) return;
 
       if (a.family === "source" && b.family === "source") {
-        const meta = a.startMeta;
-        a.startMeta = b.startMeta;
-        b.startMeta = meta;
-        swapSignals(a.startMode, b.startMode);
-        swapSignals(a.manualValue, b.manualValue);
-        swapSignals(a.lastFlippedAt, b.lastFlippedAt);
-        swapSignals(a.mode, b.mode);
+        swapSignals(a.startEnvelope, b.startEnvelope);
+        swapSignals(a.envelope, b.envelope);
       } else if (a.family === "hybrid" && b.family === "hybrid") {
-        swapSignals(a.entryMode, b.entryMode);
-        swapSignals(a.startEntryMode, b.startEntryMode);
-        swapSignals(a.percentBasis, b.percentBasis);
-        swapSignals(a.startPercentBasis, b.startPercentBasis);
+        swapSignals(a.startEnvelope, b.startEnvelope);
+        swapSignals(a.envelope, b.envelope);
       }
     },
 
@@ -393,14 +363,15 @@ export function envelopes(): JsonischPlugin<EnvelopeState> {
         // `mode: "estimate"` here would pin every virgin estimate empty and
         // the recompute would preserve the empty forever.
         if (!slot.isDirty.value) {
-          const persisted = slot.startMeta.mode;
+          const persisted = slot.startEnvelope.value.mode;
           if (persisted === undefined) return undefined;
+          const start = slot.startEnvelope.value;
           const meta: SourceMeta = {
             mode: persisted,
-            manualValue: slot.startMeta.manualValue ?? null,
+            manualValue: start.manualValue ?? null,
           };
-          if (slot.startMeta.lastFlippedAt !== undefined) {
-            meta.lastFlippedAt = slot.startMeta.lastFlippedAt;
+          if (start.lastFlippedAt !== undefined) {
+            meta.lastFlippedAt = start.lastFlippedAt;
           }
           return persisted === "estimate"
             ? wrapEstimate(valueOut, meta)
@@ -408,7 +379,7 @@ export function envelopes(): JsonischPlugin<EnvelopeState> {
         }
 
         const meta = encodeSourceMeta(store, slot);
-        return slot.mode.value === "estimate"
+        return resolveSourceMode(slot.envelope.value) === "estimate"
           ? wrapEstimate(valueOut !== undefined ? valueOut : store.input.value, meta)
           : wrapEstimate(undefined, meta);
       }

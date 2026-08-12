@@ -70,6 +70,7 @@ export function reset(form: FormRef, config?: ResetConfig): void {
           internalFormStore,
           internalFieldStore,
           config.initialInput,
+          { syncInitial: true },
         );
       }
 

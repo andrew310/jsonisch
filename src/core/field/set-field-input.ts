@@ -1,11 +1,13 @@
 import { isPresenceEqual, isSemanticEqual } from "../dirty";
 import { batch, createId, untrack } from "../framework";
+import { dispatchSyncInput } from "../plugin/driver";
 import { readOwn } from "../schema-utils";
 import type {
   InternalArrayStore,
   InternalFieldStore,
   InternalFormStore,
   InternalObjectStore,
+  InternalValueStore,
   Path,
 } from "../types";
 import { getFieldStoreChain } from "./get-field-store";
@@ -121,6 +123,17 @@ function setNestedInput(
     internalFieldStore.isDirty.value =
       computeContainerDirty(internalFieldStore);
   } else {
+    // Envelope leaves write input + envelope.value through the plugin so
+    // the two cannot fork. Core writes only unclaimed scalars.
+    if (
+      dispatchSyncInput(
+        internalFormStore,
+        internalFieldStore as InternalValueStore,
+        input,
+      )
+    ) {
+      return;
+    }
     internalFieldStore.input.value = input;
 
     // Semantic, empty-aware dirty compare (`null` ≡ `undefined` ≡ `""` ≡

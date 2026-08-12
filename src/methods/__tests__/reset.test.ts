@@ -12,6 +12,9 @@ import {
   issue,
   objectSchema,
 } from "../../core/vitest/utils";
+import { envelopesKey } from "../../plugins/envelopes/key";
+import type { SourceSlot } from "../../plugins/envelopes/types";
+import type { InternalFormStore, Path } from "../../core/types";
 import { reset } from "../reset";
 import { setInput } from "../set-input";
 
@@ -160,6 +163,39 @@ describe("reset", () => {
 
     expect(getValueStore(store, ["name"]).input.value).toBe("Alice");
     expect(getValueStore(store, ["age"]).input.value).toBe(5);
+  });
+
+  test("should adopt the whole estimate envelope from a new initialInput", () => {
+    function sourceSlotAt(form: InternalFormStore, path: Path): SourceSlot {
+      const slot = envelopesKey.get(form, getValueStore(form, path));
+      if (slot?.family !== "source") {
+        throw new Error("Expected a source slot");
+      }
+      return slot;
+    }
+
+    const store = createTestStore(
+      objectSchema({
+        fee: { type: "number", "x-field-type": "computed" },
+      }),
+      {
+        initialInput: {
+          fee: { kind: "estimate", value: 10, mode: "estimate" },
+        },
+      },
+    );
+    expect(sourceSlotAt(store, ["fee"]).mode.value).toBe("estimate");
+
+    reset(store, {
+      initialInput: { fee: { kind: "estimate", value: 1, mode: "formula" } },
+    });
+
+    const fee = getValueStore(store, ["fee"]);
+    const slot = sourceSlotAt(store, ["fee"]);
+    expect(fee.input.value).toBe(1);
+    expect(slot.mode.value).toBe("formula");
+    expect(slot.isDirty.value).toBe(false);
+    expect(fee.isDirty.value).toBe(false);
   });
 
   test("should stay clean when an empty string resets against a nullish baseline", () => {

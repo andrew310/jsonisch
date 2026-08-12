@@ -1,8 +1,8 @@
 import { isEmptyish } from "../core/dirty";
 import { getFieldStore } from "../core/field/get-field-store";
-import { setFieldInput } from "../core/field/set-field-input";
 import { batch, untrack } from "../core/framework";
 import type { DerivationMode, Path } from "../core/types";
+import { writeEnvelope } from "../plugins/envelopes/envelope";
 import { envelopesKey } from "../plugins/envelopes/key";
 import { derivationKey } from "../plugins/derivation/key";
 import { type FormRef, internalOf } from "./form-ref";
@@ -66,35 +66,57 @@ export function setMode(
 
   batch(() => {
     untrack(() => {
-      if (slot.mode.value === mode) return;
+      const live = slot.envelope.value;
+      if ((live.mode === "formula" ? "formula" : "estimate") === mode) {
+        return;
+      }
+
+      const now = options.now ?? new Date().toISOString();
 
       if (mode === "formula") {
         // Preserve the estimate as the meta half's carried manual value —
         // but only an EDITED value: the meta mirrors keystrokes, never the
         // loaded column value, so an unedited flip carries the decoded
         // `manualValue` forward unchanged
-        if (store.isDirty.value) {
-          slot.manualValue.value = isEmptyish(store.input.value)
+        const manualValue = store.isDirty.value
+          ? isEmptyish(store.input.value)
             ? null
-            : store.input.value;
-        }
-      } else {
-        // Seed the estimate from the last formula result — a real edit
-        const candidate = derivationKey.get(
-          internalFormStore,
-          store,
-        )?.formulaValue.value;
-        if (
-          candidate &&
-          candidate.error === null &&
-          candidate.value !== undefined
-        ) {
-          setFieldInput(internalFormStore, path, candidate.value);
-        }
+            : store.input.value
+          : (live.manualValue ?? null);
+        writeEnvelope(internalFormStore, store, slot, {
+          ...live,
+          mode: "formula",
+          manualValue,
+          lastFlippedAt: now,
+        });
+        return;
       }
 
-      slot.mode.value = mode;
-      slot.lastFlippedAt.value = options.now ?? new Date().toISOString();
+      // Seed the estimate from the last formula result — a real edit
+      const candidate = derivationKey.get(
+        internalFormStore,
+        store,
+      )?.formulaValue.value;
+      const seeded =
+        candidate &&
+        candidate.error === null &&
+        candidate.value !== undefined
+          ? candidate.value
+          : live.value;
+      writeEnvelope(internalFormStore, store, slot, {
+        ...live,
+        mode: "estimate",
+        value: seeded,
+        lastFlippedAt: now,
+      });
+      if (
+        candidate &&
+        candidate.error === null &&
+        candidate.value !== undefined
+      ) {
+        store.isTouched.value = true;
+        store.isEdited.value = true;
+      }
     });
   });
 }

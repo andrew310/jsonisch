@@ -32,36 +32,59 @@ export interface EntryMeta {
 export type EntryMode = "amount" | "percent";
 
 /**
+ * In-memory estimate envelope (PR #553 kind union). `mode` is omitted
+ * when nothing was ever persisted — encode must not fabricate a pin.
+ */
+export interface EstimateEnvelope {
+  readonly kind: "estimate";
+  readonly value?: unknown;
+  readonly mode?: DerivationMode;
+  readonly manualValue?: unknown;
+  readonly lastFlippedAt?: string;
+}
+
+/**
+ * In-memory amount-or-percent envelope. `mode` / `basis` are resolved
+ * (schema default applied) so dirty compare is `!==`, not re-defaulting.
+ */
+export interface HybridEnvelope {
+  readonly kind: "amount-or-percent";
+  readonly value?: unknown;
+  readonly mode: EntryMode;
+  readonly basis?: string;
+}
+
+export type Envelope = EstimateEnvelope | HybridEnvelope;
+
+/**
  * The envelope slot of an estimate field (the `source` family). The mode
- * signal lives here — the derivation plugin reads it through
- * `envelopesKey` for the estimate pin.
+ * signal is a computed over `envelope.mode` — write via `setMode` (the
+ * flip API), never by assigning `mode`.
  */
 export interface SourceSlot {
   readonly family: "source";
   /**
-   * The estimate/formula mode. Write via `setMode` (the flip API), not
-   * directly: a raw write skips value seeding and the flip timestamp.
+   * Live envelope. Written only by `writeEnvelope`.
    */
-  readonly mode: Signal<DerivationMode>;
+  readonly envelope: Signal<EstimateEnvelope>;
   /**
-   * The mode dirty baseline (what the persisted meta decoded/defaulted to).
+   * Dirty baseline / reset target. Reassigned on rebase and on
+   * `reset({ initialInput })`.
    */
-  readonly startMode: Signal<DerivationMode>;
+  readonly startEnvelope: Signal<EstimateEnvelope>;
+  /**
+   * Resolved estimate/formula mode (`undefined` wire mode → `estimate`).
+   */
+  readonly mode: ReadonlySignal<DerivationMode>;
   /**
    * The estimate value preserved when the mode flipped to formula this
-   * session (wire `manualValue` carry). Initialized from the decoded meta.
+   * session (wire `manualValue` carry).
    */
-  readonly manualValue: Signal<unknown>;
+  readonly manualValue: ReadonlySignal<unknown>;
   /**
-   * The flip timestamp stamped this session, or `undefined` while the mode
-   * has not changed (the encoded meta then carries the decoded one).
+   * The flip timestamp stamped this session, or the decoded one.
    */
-  readonly lastFlippedAt: Signal<string | undefined>;
-  /**
-   * The decoded meta at store init — the carry-forward source for wire
-   * keys the session did not change. Reassigned on rebase.
-   */
-  startMeta: SourceMeta;
+  readonly lastFlippedAt: ReadonlySignal<string | undefined>;
   /**
    * Whether the meta half must serialize: the mode changed, or the
    * estimate value did (an estimate keystroke dirties the meta with it).
@@ -86,22 +109,23 @@ export interface SourceSlot {
 export interface HybridSlot {
   readonly family: "hybrid";
   /**
+   * Live envelope. Written only by `writeEnvelope`.
+   */
+  readonly envelope: Signal<HybridEnvelope>;
+  /**
+   * Dirty baseline / reset target. Reassigned on rebase and on
+   * `reset({ initialInput })`.
+   */
+  readonly startEnvelope: Signal<HybridEnvelope>;
+  /**
    * The current entry mode.
    */
-  readonly entryMode: Signal<EntryMode>;
-  /**
-   * The entry-mode dirty baseline.
-   */
-  readonly startEntryMode: Signal<EntryMode>;
+  readonly entryMode: ReadonlySignal<EntryMode>;
   /**
    * The current percent basis (a loan field key), or `undefined` when the
    * schema declares no default and none was stored.
    */
-  readonly percentBasis: Signal<string | undefined>;
-  /**
-   * The percent-basis dirty baseline.
-   */
-  readonly startPercentBasis: Signal<string | undefined>;
+  readonly percentBasis: ReadonlySignal<string | undefined>;
   /**
    * Whether the meta half must serialize (entry mode or basis changed).
    */

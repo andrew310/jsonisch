@@ -269,7 +269,9 @@ describe("meta channel", () => {
         points: "100",
       });
       // …and the meta half landed on the plugin's slots
-      expect(sourceSlotAt(store, ["fee"]).startMeta).toStrictEqual({
+      expect(sourceSlotAt(store, ["fee"]).startEnvelope.value).toStrictEqual({
+        kind: "estimate",
+        value: 5,
         mode: "estimate",
         manualValue: "5",
       });
@@ -283,7 +285,11 @@ describe("meta channel", () => {
       expect(getValueStore(store, ["fee"]).input.value).toBe(5);
       const slot = sourceSlotAt(store, ["fee"]);
       expect(slot.mode.value).toBe("estimate");
-      expect(slot.startMeta).toStrictEqual({});
+      expect(slot.startEnvelope.value).toStrictEqual({
+        kind: "estimate",
+        value: 5,
+        manualValue: null,
+      });
       expect(slot.manualValue.value).toBe(null);
     });
 
@@ -322,6 +328,7 @@ describe("meta channel", () => {
         },
       );
       setInput(store, ["fee"], "1500");
+      expect(sourceSlotAt(store, ["fee"]).envelope.value.value).toBe("1500");
       expect(getDirtyInput(store)).toStrictEqual({
         fee: { kind: "estimate", value: "1500", mode: "estimate", manualValue: "1500"  },
       });

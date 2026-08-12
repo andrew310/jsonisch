@@ -1,23 +1,31 @@
 import { getFieldStore } from "../core/field/get-field-store";
 import { batch, untrack } from "../core/framework";
-import type { Path } from "../core/types";
+import type { InternalFormStore, InternalValueStore, Path } from "../core/types";
+import { writeEnvelope } from "../plugins/envelopes/envelope";
 import { envelopesKey } from "../plugins/envelopes/key";
 import type { EntryMode, HybridSlot } from "../plugins/envelopes/types";
 import { type FormRef, internalOf } from "./form-ref";
 
-function hybridSlotOf(form: FormRef, path: Path): HybridSlot {
+function hybridOf(
+  form: FormRef,
+  path: Path,
+): {
+  form: InternalFormStore;
+  store: InternalValueStore;
+  slot: HybridSlot;
+} {
   const internalFormStore = internalOf(form);
   const store = getFieldStore(internalFormStore, path);
   const slot =
     store.kind === "value"
       ? envelopesKey.get(internalFormStore, store)
       : undefined;
-  if (slot?.family !== "hybrid") {
+  if (store.kind !== "value" || slot?.family !== "hybrid") {
     throw new Error(
       `Not an amount-or-percent field (at ${JSON.stringify(path)}) — needs a field with a hybrid envelope slot`,
     );
   }
-  return slot;
+  return { form: internalFormStore, store, slot };
 }
 
 /**
@@ -31,10 +39,13 @@ function hybridSlotOf(form: FormRef, path: Path): HybridSlot {
  * @param mode The entry mode.
  */
 export function setEntryMode(form: FormRef, path: Path, mode: EntryMode): void {
-  const slot = hybridSlotOf(form, path);
+  const target = hybridOf(form, path);
   batch(() => {
     untrack(() => {
-      slot.entryMode.value = mode;
+      writeEnvelope(target.form, target.store, target.slot, {
+        ...target.slot.envelope.value,
+        mode,
+      });
     });
   });
 }
@@ -53,10 +64,13 @@ export function setPercentBasis(
   path: Path,
   percentBasis: string,
 ): void {
-  const slot = hybridSlotOf(form, path);
+  const target = hybridOf(form, path);
   batch(() => {
     untrack(() => {
-      slot.percentBasis.value = percentBasis;
+      writeEnvelope(target.form, target.store, target.slot, {
+        ...target.slot.envelope.value,
+        basis: percentBasis,
+      });
     });
   });
 }

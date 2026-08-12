@@ -55,9 +55,8 @@ export function rebaseFieldBaseline(
 
     // An array item rebases its plugin state from its OWN fresh row object
     // (each envelope field's meta half rides the field key) — the row twin
-    // of the root rebase dispatch in `applyBaseline`, and like it, run
-    // AFTER the value rebase. Clean mode/entry state adopts the server's,
-    // an in-session flip survives and re-diffs against the new baseline.
+    // of the root rebase dispatch in `applyBaseline`. Envelope leaves skip
+    // the value rebase above; `adoptEnvelope` + `writeEnvelope` run here.
     if (
       typeof internalFieldStore.path[internalFieldStore.path.length - 1] ===
       "number"
@@ -69,6 +68,12 @@ export function rebaseFieldBaseline(
       internalFieldStore,
     );
   } else {
+    // Envelope-control leaves adopt through the plugin (`adoptEnvelope`
+    // then `writeEnvelope` once). Writing the number here would fork it
+    // from the live envelope and last-write-wins the whole object.
+    if (internalFormStore.pluginDriver.envelopes.has(internalFieldStore.control)) {
+      return;
+    }
     const newValue = resolveValueInput(
       internalFormStore.emptyInput,
       internalFieldStore.schema,

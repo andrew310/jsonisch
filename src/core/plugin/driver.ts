@@ -22,6 +22,8 @@ const KNOWN_MEMBERS = new Set([
   "buildScope",
   "reseedScope",
   "resetField",
+  "syncInput",
+  "syncInitial",
   "rebase",
   "transferField",
   "swapField",
@@ -39,6 +41,8 @@ const HOOK_NAMES = [
   "buildScope",
   "reseedScope",
   "resetField",
+  "syncInput",
+  "syncInitial",
   "rebase",
   "transferField",
   "swapField",
@@ -248,6 +252,45 @@ export function dispatchResetField(
   for (const plugin of form.pluginDriver?.hooks.resetField ?? []) {
     attributed(plugin, "resetField", () =>
       plugin.resetField!(ctxOf(form, plugin), store),
+    );
+  }
+}
+
+/**
+ * Asks plugins to take a live leaf write (`setFieldInput`). Returns
+ * `true` when a plugin wrote `store.input` so core must not write it
+ * again — otherwise the envelope.value and the number would fork.
+ */
+export function dispatchSyncInput(
+  form: InternalFormStore,
+  store: InternalValueStore,
+  input: unknown,
+): boolean {
+  let handled = false;
+  for (const plugin of form.pluginDriver?.hooks.syncInput ?? []) {
+    if (
+      attributed(plugin, "syncInput", () =>
+        plugin.syncInput!(ctxOf(form, plugin), store, input),
+      )
+    ) {
+      handled = true;
+    }
+  }
+  return handled;
+}
+
+/**
+ * Re-decodes each plugin's start baseline from the same raw
+ * `reset({ initialInput })` just wrote into `initialInput`.
+ */
+export function dispatchSyncInitial(
+  form: InternalFormStore,
+  store: InternalValueStore,
+  raw: unknown,
+): void {
+  for (const plugin of form.pluginDriver?.hooks.syncInitial ?? []) {
+    attributed(plugin, "syncInitial", () =>
+      plugin.syncInitial!(ctxOf(form, plugin), store, raw),
     );
   }
 }

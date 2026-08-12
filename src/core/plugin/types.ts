@@ -142,6 +142,30 @@ export interface JsonischPlugin<TState = unknown> {
   resetField?(ctx: PluginCtx<TState>, store: InternalFieldStore): void;
 
   /**
+   * 4b — live input write for a value leaf (`setFieldInput`). Return
+   * `true` when the plugin wrote `store.input` (and its own slot) so core
+   * does not write the leaf again. Envelope fields use this so a
+   * keystroke updates `envelope.value` through `writeEnvelope`.
+   */
+  syncInput?(
+    ctx: PluginCtx<TState>,
+    store: InternalValueStore,
+    input: unknown,
+  ): boolean;
+
+  /**
+   * 4c — `reset({ initialInput })` has just written this leaf's
+   * `initialInput` from `raw`. Re-decode the start envelope from that
+   * same raw so `resetField` restores number and mode from one object.
+   * Not called from `applyBaseline` (rebase owns that adopt).
+   */
+  syncInitial?(
+    ctx: PluginCtx<TState>,
+    store: InternalValueStore,
+    raw: unknown,
+  ): void;
+
+  /**
    * 5 — after the value/baseline rebase of one object scope: the form root
    * (from `applyBaseline`, with the raw decoded record) and each array-item
    * object (from the baseline rebase walk, with the fresh raw row). The

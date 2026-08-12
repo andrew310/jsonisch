@@ -258,7 +258,7 @@ describe("applyBaseline", () => {
 
       const price = sourceSlotAt(store, ["price"]);
       expect(price.mode.value).toBe("formula");
-      expect(price.startMode.value).toBe("formula");
+      expect(price.startEnvelope.value.mode).toBe("formula");
       // The value half of the same envelope rebased the field's input
       expect(getValueStore(store, ["price"]).input.value).toBe(42);
     });
@@ -298,8 +298,10 @@ describe("applyBaseline", () => {
 
       const price = sourceSlotAt(store, ["price"]);
       expect(price.mode.value).toBe("formula");
-      expect(price.startMode.value).toBe("estimate");
+      expect(price.startEnvelope.value.mode).toBe("estimate");
       expect(price.isDirty.value).toBe(true);
+      // Dirty mode must not freeze the clean number against the server
+      expect(getValueStore(store, ["price"]).input.value).toBe(42);
     });
 
     test("should rebase hybrid entry state per signal", () => {
@@ -324,7 +326,7 @@ describe("applyBaseline", () => {
       const fee = hybridSlotAt(store, ["fee"]);
       // The user's entry-mode flip matches the fresh envelope → clean
       expect(fee.entryMode.value).toBe("percent");
-      expect(fee.startEntryMode.value).toBe("percent");
+      expect(fee.startEnvelope.value.mode).toBe("percent");
       // The untouched basis adopts the fresh envelope
       expect(fee.percentBasis.value).toBe("loanAmount");
       expect(fee.isDirty.value).toBe(false);
