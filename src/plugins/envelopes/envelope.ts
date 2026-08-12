@@ -117,9 +117,10 @@ export function decodeHybridEnvelope(
 }
 
 /**
- * The only writer of `slot.envelope` and that field's `store.input`.
- * `input` is the value half, empty-input-resolved — widgets still bind
- * a scalar.
+ * Sole writer of `slot.envelope` and this field's `store.input` for live
+ * edits, decode, and rebase. Array transfer/swap move the envelope signal
+ * itself (`copyItemState` already moved `store.input`). `input` is the
+ * value half, empty-input-resolved — widgets still bind a scalar.
  */
 export function writeEnvelope(
   form: InternalFormStore,
