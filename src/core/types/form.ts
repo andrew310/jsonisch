@@ -79,8 +79,8 @@ export interface FormConfig {
   /**
    * The registered plugins, run in array order within each hook. Falsy
    * entries and one level of nesting are accepted
-   * (`plugins: [companions(), engine && derivation(engine)]`). Everything
-   * computed on top of the base pipeline — companion meta state,
+   * (`plugins: [envelopes(), engine && derivation(engine)]`). Everything
+   * computed on top of the base pipeline — envelope meta state,
    * derivation, visibility — registers here; a form without plugins is a
    * plain schema-walked value store.
    */
@@ -158,7 +158,7 @@ export interface InternalFormStore extends InternalObjectStore {
   /**
    * Each plugin's state container, keyed by its `PluginKey` identity
    * (created by the plugin's `build`). Read through the exported keys
-   * (`companionsKey.get(form, store)`), never directly.
+   * (`envelopesKey.get(form, store)`), never directly.
    */
   pluginState: Map<PluginKey<unknown>, unknown>;
   /**

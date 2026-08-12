@@ -10,7 +10,7 @@ flowchart TD
   PG -->|"① decodeRecord — schema-declared keys only,<br/>envelopes pass through WHOLE<br/>(bag preferred over a column mirror)"| II["initialInput<br/>{ myField: { value, source } }"]
   II -->|"② createFormStore visits each declared field"| FORK{{"estimate / amount-or-percent leaf:<br/>the SAME raw envelope is read twice"}}
   FORK -->|"value half<br/>unwrapLeafInput (core/plugin/driver.ts)"| INPUT["field input signal<br/>60000 — what you type over,<br/>what formulas read"]
-  FORK -->|"meta half<br/>companions() buildScope<br/>(plugins/companions/plugin.ts)"| SLOT["companion slot<br/>mode: estimate/formula —<br/>what the toggle shows"]
+  FORK -->|"meta half<br/>envelopes() buildScope<br/>(plugins/envelopes/plugin.ts)"| SLOT["envelope slot<br/>mode: estimate/formula —<br/>what the toggle shows"]
 ```
 
 It is a **fork, not a chain**: the meta reader consumes the original raw,
@@ -19,6 +19,6 @@ next to it can never derive from different data.
 
 The same fork re-runs on `reset`, `applyBaseline` (root and per row, after
 the value rebase), and array-row reuse — every path funnels through the same
-two readers. There is no companion side-channel: `decodeCompanions` was
+two readers. There is no envelope side-channel: `decodeCompanions` was
 deleted in LOS-603 because the envelope rides the field key itself, at every
 depth (a row's estimate decodes from its own row object identically).

@@ -28,7 +28,7 @@ export interface EncodeDirtyOptions {
    */
   knownColumns?: ReadonlySet<string>;
   /**
-   * The plugins' static wire contracts (`[companionsWire, derivationWire]`
+   * The plugins' static wire contracts (`[envelopesWire, derivationWire]`
    * for the standard trio). This function is isomorphic — the server
    * assembles the same list from the same exported descriptors, with no
    * form store anywhere (D7). Without contracts every declared value

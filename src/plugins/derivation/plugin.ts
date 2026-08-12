@@ -13,7 +13,7 @@ import type {
   InternalObjectStore,
   InternalValueStore,
 } from "../../core/types";
-import { companionsKey } from "../companions/key";
+import { envelopesKey } from "../envelopes/key";
 import { derivationKey, type DerivationSlot } from "./key";
 import { resolveRowFallback } from "./row-scope";
 
@@ -73,10 +73,10 @@ function messageOf(error: unknown): string {
  * the canonical rows merge with the live form rows (the collection
  * overlay for aggregate refs).
  *
- * Declares `dependsOn: [companionsKey]` — the estimate pin reads the mode
- * signal the companions plugin creates; without it the pin would silently
+ * Declares `dependsOn: [envelopesKey]` — the estimate pin reads the mode
+ * signal the envelopes plugin creates; without it the pin would silently
  * never engage and a manually pinned value would be overwritten by the
- * next recompute (the D2 data-loss scenario), so a missing companions
+ * next recompute (the D2 data-loss scenario), so a missing envelopes
  * plugin is a startup error instead.
  */
 export function derivation(
@@ -85,7 +85,7 @@ export function derivation(
   return {
     name: "derivation",
     key: derivationKey,
-    dependsOn: [companionsKey],
+    dependsOn: [envelopesKey],
 
     build: () => new Map(),
 
@@ -287,15 +287,15 @@ function wireFormulaGraph(
     // `formulaValue` when unpinned). An EMPTY estimate does NOT pin — the
     // settled LOS-515 rule ("empty manual → silent takeover"): dependents
     // read the formula result until a real estimate is typed, matching the
-    // server recompute's fall-through. The mode signal is the companions
+    // server recompute's fall-through. The mode signal is the envelopes
     // plugin's (`dependsOn` guarantees it was built first); read lazily
     // through the key on every evaluation.
     const derived =
       store.control === "estimate"
         ? computed<DerivedState>(() => {
-            const companion = companionsKey.get(form, store);
-            return companion?.family === "source" &&
-              companion.mode.value === "estimate" &&
+            const envelope = envelopesKey.get(form, store);
+            return envelope?.family === "source" &&
+              envelope.mode.value === "estimate" &&
               !isEmptyish(store.input.value)
               ? { value: store.input.value, error: null }
               : formulaValue.value;

@@ -112,7 +112,7 @@ export function initializeFieldStore(
     // its own: dispatch `buildScope` here, in the walk, so a row created by
     // an insert or a whole-array write behaves exactly like one the record
     // loaded with. Plugins run in array order — for the standard trio the
-    // companions pass (whose mode signal the estimate pin reads) precedes
+    // envelopes pass (whose mode signal the estimate pin reads) precedes
     // derivation, exactly as at the root. The row's own raw object carries
     // each envelope field's meta half (`{ value, source | entry }`), so it
     // IS the scope's raw. Skipped for the form root (path `[]`, dispatched

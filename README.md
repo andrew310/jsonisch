@@ -86,9 +86,9 @@ TanStack Form's headline is deep, compile-time **path type-inference**. `jsonisc
 
 Deeper dives, with diagrams, live in [`docs/`](./docs):
 
-- [decode-fork.md](./docs/decode-fork.md) — how a server record becomes `initialInput` (`x-column` routing, the companion twin).
+- [decode-fork.md](./docs/decode-fork.md) — how a server record becomes `initialInput` (`x-column` routing, the envelope twin).
 - [plugin-lifecycle.md](./docs/plugin-lifecycle.md) — the pass order at build, and the reseed / rebase / reset / transfer sites.
-- [wire-shapes.md](./docs/wire-shapes.md) — the save payload partition, the companion envelopes, and the LOS-461 skip policy.
+- [wire-shapes.md](./docs/wire-shapes.md) — the save payload partition, the persisted envelopes, and the LOS-461 skip policy.
 
 ---
 

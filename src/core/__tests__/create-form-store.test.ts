@@ -7,8 +7,8 @@ vi.mock("../framework", () => frameworkMocks);
 
 import { getFieldInput } from "../field/get-field-input";
 import { createFormStore } from "../form/create-form-store";
-import { companions } from "../../plugins/companions/plugin";
-import { companionsKey } from "../../plugins/companions/key";
+import { envelopes } from "../../plugins/envelopes/plugin";
+import { envelopesKey } from "../../plugins/envelopes/key";
 import { derivation } from "../../plugins/derivation/plugin";
 import { visibility } from "../../plugins/visibility/plugin";
 import type { CalcEngine } from "../types";
@@ -391,7 +391,7 @@ describe("createFormStore", () => {
       extractDependencies: () => [],
     };
 
-    test("should throw when derivation is registered without companions", () => {
+    test("should throw when derivation is registered without envelopes", () => {
       // The D2 data-loss scenario: with no mode signal the estimate pin
       // silently never engages and the next recompute overwrites a manually
       // pinned value — so a missing dependency is a startup error naming
@@ -401,25 +401,25 @@ describe("createFormStore", () => {
           schema: estimateSchema,
           plugins: [derivation(noopEngine)],
         }),
-      ).toThrow(/"derivation" requires plugin "companions" earlier/);
+      ).toThrow(/"derivation" requires plugin "envelopes" earlier/);
     });
 
-    test("should throw when companions is registered AFTER derivation", () => {
+    test("should throw when envelopes is registered AFTER derivation", () => {
       expect(() =>
         createFormStore({
           schema: estimateSchema,
-          plugins: [derivation(noopEngine), companions()],
+          plugins: [derivation(noopEngine), envelopes()],
         }),
-      ).toThrow(/"derivation" requires plugin "companions" earlier/);
+      ).toThrow(/"derivation" requires plugin "envelopes" earlier/);
     });
 
     test("should throw on a duplicate plugin name", () => {
       expect(() =>
         createFormStore({
           schema: estimateSchema,
-          plugins: [companions(), companions()],
+          plugins: [envelopes(), envelopes()],
         }),
-      ).toThrow(/Duplicate jsonisch plugin name "companions"/);
+      ).toThrow(/Duplicate jsonisch plugin name "envelopes"/);
     });
 
     test("should throw on a typo'd hook name", () => {
@@ -427,7 +427,7 @@ describe("createFormStore", () => {
       expect(() =>
         createFormStore({
           schema: estimateSchema,
-          plugins: [{ ...companions(), rebaseField: () => {} } as never],
+          plugins: [{ ...envelopes(), rebaseField: () => {} } as never],
         }),
       ).toThrow(/Unknown member "rebaseField"/);
     });
@@ -436,12 +436,12 @@ describe("createFormStore", () => {
       const engine: CalcEngine | undefined = undefined;
       const store = createFormStore({
         schema: estimateSchema,
-        plugins: [companions(), engine && derivation(engine), [visibility()]],
+        plugins: [envelopes(), engine && derivation(engine), [visibility()]],
       });
-      // companions built its slot; the conditional derivation simply is not
+      // envelopes built its slot; the conditional derivation simply is not
       // registered
       expect(
-        companionsKey.get(store, getValueStore(store, ["fee"]))?.family,
+        envelopesKey.get(store, getValueStore(store, ["fee"]))?.family,
       ).toBe("source");
     });
 
@@ -449,7 +449,7 @@ describe("createFormStore", () => {
       const store = createFormStore({ schema: estimateSchema });
       expect(store.pluginDriver.plugins).toStrictEqual([]);
       expect(
-        companionsKey.get(store, getValueStore(store, ["fee"])),
+        envelopesKey.get(store, getValueStore(store, ["fee"])),
       ).toBe(undefined);
     });
   });

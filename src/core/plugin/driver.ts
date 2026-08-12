@@ -62,7 +62,7 @@ export interface PluginDriver {
   >;
   /**
    * Envelope wire contracts by control kind (`estimate` →
-   * `companionsWire`), consulted by the leaf decode paths.
+   * `envelopesWire`), consulted by the leaf decode paths.
    */
   readonly envelopes: ReadonlyMap<string, WireContract>;
 }

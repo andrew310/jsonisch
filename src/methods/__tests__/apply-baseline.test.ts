@@ -13,8 +13,8 @@ import {
   objectSchema,
   staticValidator,
 } from "../../core/vitest/utils";
-import { companionsKey } from "../../plugins/companions/key";
-import type { HybridSlot, SourceSlot } from "../../plugins/companions/types";
+import { envelopesKey } from "../../plugins/envelopes/key";
+import type { HybridSlot, SourceSlot } from "../../plugins/envelopes/types";
 import type { InternalFormStore, Path } from "../../core/types";
 import { applyBaseline } from "../apply-baseline";
 import { insert, remove } from "../array-ops";
@@ -219,17 +219,17 @@ describe("applyBaseline", () => {
     });
   });
 
-  describe("meta channel (the companions plugin's envelope half)", () => {
+  describe("meta channel (the envelopes plugin's envelope half)", () => {
     const estimateSchema = objectSchema({
       price: { type: "number", "x-field-type": "computed" },
     });
 
     /**
-     * The companions slot of the field at `path` — the meta half lives in
+     * The envelopes slot of the field at `path` — the meta half lives in
      * plugin state now, keyed by store identity.
      */
     function slotAt(form: InternalFormStore, path: Path) {
-      return companionsKey.get(form, getValueStore(form, path));
+      return envelopesKey.get(form, getValueStore(form, path));
     }
 
     function sourceSlotAt(form: InternalFormStore, path: Path): SourceSlot {

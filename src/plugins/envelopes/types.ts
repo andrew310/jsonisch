@@ -36,9 +36,9 @@ export interface EntryMeta {
 export type EntryMode = "amount" | "percent";
 
 /**
- * The companion slot of an estimate field (the `source` family). The mode
+ * The envelope slot of an estimate field (the `source` family). The mode
  * signal lives here — the derivation plugin reads it through
- * `companionsKey` for the estimate pin.
+ * `envelopesKey` for the estimate pin.
  */
 export interface SourceSlot {
   readonly family: "source";
@@ -84,7 +84,7 @@ export interface SourceSlot {
 }
 
 /**
- * The companion slot of an amount-or-percent field (the `entry` family).
+ * The envelope slot of an amount-or-percent field (the `entry` family).
  * Value edits never dirty the meta — only entry-state changes do.
  */
 export interface HybridSlot {
@@ -120,8 +120,8 @@ export interface HybridSlot {
 }
 
 /**
- * The companion slot a value field may carry: meta state that is
- * dirty-tracked and serialized by the companions plugin, never rendered as
+ * The envelope slot a value field may carry: meta state that is
+ * dirty-tracked and serialized by the envelopes plugin, never rendered as
  * a field.
  */
-export type CompanionSlot = SourceSlot | HybridSlot;
+export type EnvelopeSlot = SourceSlot | HybridSlot;

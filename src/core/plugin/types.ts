@@ -220,7 +220,7 @@ export interface JsonischPlugin<TState = unknown> {
 /**
  * The `plugins` config entry: factories may be composed conditionally —
  * falsy entries and nested arrays are accepted and flattened
- * (`plugins: [companions(), engine && derivation(engine)]`).
+ * (`plugins: [envelopes(), engine && derivation(engine)]`).
  */
 export type PluginsInput = ReadonlyArray<
   | JsonischPlugin<unknown>

@@ -81,7 +81,7 @@ function Harness({
 }
 
 describe("plugin fieldSnapshot contributions", () => {
-  it("surfaces the companions + derivation members on an estimate field", () => {
+  it("surfaces the envelopes + derivation members on an estimate field", () => {
     let field!: FieldStore;
     render(
       <Harness
@@ -97,7 +97,7 @@ describe("plugin fieldSnapshot contributions", () => {
     expect(typeof field.setMode).toBe("function");
     expect(field.derived).toEqual({ value: 20, error: null });
     expect(field.formulaValue).toEqual({ value: 20, error: null });
-    // The companions plugin contributes nothing hybrid-family here
+    // The envelopes plugin contributes nothing hybrid-family here
     expect(field.entryMode).toBeUndefined();
     expect(field.percentBasis).toBeUndefined();
   });

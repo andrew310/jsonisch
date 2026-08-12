@@ -22,7 +22,7 @@ keys anywhere on the wire:
 
 Inner names stay legacy (`manual`/`calculated`, `bps`/`fixed_amount`). Every
 other field persists bare. The shape is owned by ONE static descriptor —
-`companionsWire` in `src/plugins/companions/wire.ts` — imported identically by
+`envelopesWire` in `src/plugins/envelopes/wire.ts` — imported identically by
 the client plugin and the server codec (spec D7), so the halves cannot drift.
 
 ## Encode: `encodeDirty(schema, dirty, { knownColumns, wire })`
@@ -34,7 +34,7 @@ flowchart TD
   K -- declared --> SKIP{"wire.skipValue?"}
   SKIP -- "formula (derivationWire)" --> DROP2["dropped — recompute is the author"]
   SKIP -- no --> ENV{"envelope control?"}
-  ENV -- yes --> NORM["companionsWire.encode:<br/>estimate not pinned manual → strip value half;<br/>bare estimate value → dropped (LOS-461)"]
+  ENV -- yes --> NORM["envelopesWire.encode:<br/>estimate not pinned manual → strip value half;<br/>bare estimate value → dropped (LOS-461)"]
   NORM --> BAG["data (envelope WHOLE)"]
   NORM -- "x-column: true" --> MIRROR["columns (scalar value-half mirror)"]
   ENV -- no --> COL{"x-column === true?"}
@@ -59,6 +59,6 @@ Key rules:
 
 `decodeRecord(schema, record, { envelopes })` routes by `x-column` and passes
 envelopes through whole; the walk unwraps the value half at each leaf
-(`unwrapLeafInput`) and the companions plugin takes the meta half — see the
+(`unwrapLeafInput`) and the envelopes plugin takes the meta half — see the
 fork diagram atop `src/core/codec/decode-record.ts` and
 [decode-fork.md](./decode-fork.md).

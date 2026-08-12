@@ -13,9 +13,9 @@
  *        │     once per half — both readers take the SAME raw object:
  *        ├──────────────────────────┬─────────────────────────────┐
  *        ▼                          ▼                             │
- *   value half → field input   meta half → companion slot         │
- *   (`unwrapLeafInput`,        (`companions()` buildScope,        │
- *    core/plugin/driver.ts)     plugins/companions/plugin.ts)     │
+ *   value half → field input   meta half → envelope slot         │
+ *   (`unwrapLeafInput`,        (`envelopes()` buildScope,        │
+ *    core/plugin/driver.ts)     plugins/envelopes/plugin.ts)     │
  *
  * It is a FORK, not a chain: the meta reader consumes the original raw,
  * never the value reader's output, so the value a user sees and the mode
@@ -31,7 +31,7 @@ import type { JsonSchema } from "../types";
 
 // The decode fork, drawn out: `docs/decode-fork.md` in this package.
 // It is the one home for the diagram (record → columns vs `data` bag, and
-// the companion twin) — keep the picture there, not duplicated here.
+// the envelope twin) — keep the picture there, not duplicated here.
 
 /**
  * Options for `decodeRecord`.
@@ -39,7 +39,7 @@ import type { JsonSchema } from "../types";
 export interface DecodeRecordOptions {
   /**
    * Envelope wire contracts keyed by control kind — the form store's
-   * `pluginDriver.envelopes`, or `envelopeContracts([companionsWire])` on
+   * `pluginDriver.envelopes`, or `envelopeContracts([envelopesWire])` on
    * the server. An envelope-control field reads its WHOLE envelope from
    * the `data` bag (falling back to the bare column value for a field
    * whose meta was never persisted); core unwraps the value half at the

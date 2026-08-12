@@ -10,7 +10,7 @@ declare const stateBrand: unique symbol;
  *
  * Keys are module-level singletons exported next to their plugin factory.
  * Cross-plugin reads go through the exported key (derivation imports
- * `companionsKey`, never the companions implementation), and stay
+ * `envelopesKey`, never the envelopes implementation), and stay
  * `T | undefined` — a form without the owning plugin is a legal config.
  */
 export class PluginKey<TState> {

@@ -7,8 +7,8 @@ import { getDirtyPaths } from "../../methods/get-dirty-paths";
 import { setErrors } from "../../methods/errors";
 import { setInput } from "../../methods/set-input";
 import { setOffFormValues } from "../../methods/set-off-form-values";
-import { companionsKey } from "../../plugins/companions/key";
-import type { SourceSlot } from "../../plugins/companions/types";
+import { envelopesKey } from "../../plugins/envelopes/key";
+import type { SourceSlot } from "../../plugins/envelopes/types";
 import { derivationKey } from "../../plugins/derivation/key";
 import type { DerivationSlot } from "../../plugins/derivation/key";
 import { resolveScopeValueAt } from "../../plugins/derivation/resolve-scope-value";
@@ -84,14 +84,14 @@ function derivedAt(form: InternalFormStore, path: Path): DerivedState {
 }
 
 /**
- * The companions plugin's source slot (the estimate mode signal lives
- * there — derivation reads it through `companionsKey`).
+ * The envelopes plugin's source slot (the estimate mode signal lives
+ * there — derivation reads it through `envelopesKey`).
  */
 function sourceSlotAt(
   form: InternalFormStore,
   path: Path,
 ): SourceSlot | undefined {
-  const slot = companionsKey.get(form, getValueStore(form, path));
+  const slot = envelopesKey.get(form, getValueStore(form, path));
   return slot?.family === "source" ? slot : undefined;
 }
 
@@ -702,7 +702,7 @@ describe("derivation", () => {
     });
 
     test("should open empty as a typeable estimate whose output falls through to the formula", () => {
-      // Companion-less default is estimate (manual-first, LOS-461) — but an
+      // Envelope-less default is estimate (manual-first, LOS-461) — but an
       // EMPTY estimate does not pin: dependents read the formula until a
       // real estimate is typed (the LOS-515 silent-takeover rule)
       const exprs = { sum: stub(["a"], (s) => num(s.a) * 2) };
@@ -737,7 +737,7 @@ describe("derivation", () => {
         initialInput: { a: 10, fee: 1234 },
         plugins: testPlugins(makeEngine(exprs)),
       });
-      // Derivation reads the mode through the companions slot — the pin
+      // Derivation reads the mode through the envelopes slot — the pin
       // engages off THAT signal, not off a member of the field store
       const mode = sourceSlotAt(store, ["fee"])!.mode;
       mode.value = "formula";

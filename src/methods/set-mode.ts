@@ -3,7 +3,7 @@ import { getFieldStore } from "../core/field/get-field-store";
 import { setFieldInput } from "../core/field/set-field-input";
 import { batch, untrack } from "../core/framework";
 import type { DerivationMode, Path } from "../core/types";
-import { companionsKey } from "../plugins/companions/key";
+import { envelopesKey } from "../plugins/envelopes/key";
 import { derivationKey } from "../plugins/derivation/key";
 import { type FormRef, internalOf } from "./form-ref";
 
@@ -37,9 +37,9 @@ export interface SetModeOptions {
  * with no other edit still produces a payload.
  *
  * Works at any depth: an estimate field inside an array row has its own
- * companion slot, built from the row's envelope. The throw is reserved
+ * envelope slot, built from the row's envelope. The throw is reserved
  * for a field that genuinely has none — a non-estimate control, or a form
- * without the companions plugin.
+ * without the envelopes plugin.
  *
  * @param form The form store containing the field.
  * @param path The path to the estimate field.
@@ -56,11 +56,11 @@ export function setMode(
   const store = getFieldStore(internalFormStore, path);
   const slot =
     store.kind === "value"
-      ? companionsKey.get(internalFormStore, store)
+      ? envelopesKey.get(internalFormStore, store)
       : undefined;
   if (store.kind !== "value" || slot?.family !== "source") {
     throw new Error(
-      `Not an estimate field (at ${JSON.stringify(path)}) — setMode needs a field with a source companion slot`,
+      `Not an estimate field (at ${JSON.stringify(path)}) — setMode needs a field with a source envelope slot`,
     );
   }
 

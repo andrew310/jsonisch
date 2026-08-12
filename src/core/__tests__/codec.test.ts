@@ -7,7 +7,7 @@ vi.mock("../framework", () => frameworkMocks);
 
 import { decodeRecord } from "../codec/decode-record";
 import { encodeDirty, envelopeContracts } from "../codec/encode-dirty";
-import { companionsWire } from "../../plugins/companions/wire";
+import { envelopesWire } from "../../plugins/envelopes/wire";
 import { derivationWire } from "../../plugins/derivation/wire";
 import { loanStageSchema } from "../vitest/fixtures";
 import { createTestStore, objectSchema } from "../vitest/utils";
@@ -22,8 +22,8 @@ beforeEach(resetIdCounter);
  * assembles for save routing (D7: `encodeDirty` is isomorphic and holds no
  * form store).
  */
-const wire = [companionsWire, derivationWire];
-const envelopes = envelopeContracts([companionsWire]);
+const wire = [envelopesWire, derivationWire];
+const envelopes = envelopeContracts([envelopesWire]);
 
 /**
  * A column-backed estimate field: the whole envelope lands in the data bag
@@ -392,7 +392,7 @@ describe("round-trip", () => {
       initialInput: decodeRecord(loanStageSchema, record, { envelopes }),
     });
     // The value half decoded into form state; the meta half stayed with the
-    // companions plugin
+    // envelopes plugin
     setInput(store, ["appraisedValue"], 1_300_000);
 
     const dirty = getDirtyInput(store) as Record<string, unknown>;

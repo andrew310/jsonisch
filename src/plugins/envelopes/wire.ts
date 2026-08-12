@@ -58,7 +58,7 @@ export function wrapEntry(value: unknown, meta: EntryMeta): unknown {
 }
 
 /**
- * The companions plugin's STATIC wire contract — isomorphic by
+ * The envelopes plugin's STATIC wire contract — isomorphic by
  * construction: the server imports this same object for save routing
  * (`encodeDirty`), the recompute pass, and engine-less readers
  * (changelog, list pages), with no form store anywhere (D7).
@@ -68,7 +68,7 @@ export function wrapEntry(value: unknown, meta: EntryMeta): unknown {
  * amount-or-percent fields `{ value, entry: { mode, denominator } }`.
  * Only these two controls grow the envelope; scalars stay bare.
  */
-export const companionsWire: WireContract = {
+export const envelopesWire: WireContract = {
   envelopeControls: ["estimate", "amount-or-percent"],
 
   /**

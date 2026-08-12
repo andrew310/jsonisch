@@ -25,7 +25,7 @@ export const DEFAULT_EMPTY_INPUT: Record<string, unknown> = { string: "" };
  * so the walk can dispatch `buildScope` for every array-item object it
  * creates (a row wired by the walk behaves exactly like one built later by
  * an insert). The ROOT scope is dispatched after the walk, in plugin array
- * order — for the standard trio that means companions (the estimate pin's
+ * order — for the standard trio that means envelopes (the estimate pin's
  * mode signal) before derivation before visibility.
  *
  * @param config The form configuration.

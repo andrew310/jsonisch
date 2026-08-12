@@ -9,13 +9,13 @@ import { reset } from "../../methods/reset";
 import { setEntryMode, setPercentBasis } from "../../methods/set-entry";
 import { setInput } from "../../methods/set-input";
 import { setMode } from "../../methods/set-mode";
-import { companionsKey } from "../../plugins/companions/key";
+import { envelopesKey } from "../../plugins/envelopes/key";
 import type {
-  CompanionSlot,
+  EnvelopeSlot,
   HybridSlot,
   SourceSlot,
-} from "../../plugins/companions/types";
-import { companionsWire } from "../../plugins/companions/wire";
+} from "../../plugins/envelopes/types";
+import { envelopesWire } from "../../plugins/envelopes/wire";
 import { derivationKey } from "../../plugins/derivation/key";
 import { derivationWire } from "../../plugins/derivation/wire";
 import { decodeRecord } from "../codec/decode-record";
@@ -66,14 +66,14 @@ const doubleA = () => ({
 });
 
 /**
- * The companion slot of the field at `path` — the meta half lives in
+ * The envelope slot of the field at `path` — the meta half lives in
  * plugin state, keyed by field-store identity (LOS-603).
  */
 function slotAt(
   form: InternalFormStore,
   path: Path,
-): CompanionSlot | undefined {
-  return companionsKey.get(form, getValueStore(form, path));
+): EnvelopeSlot | undefined {
+  return envelopesKey.get(form, getValueStore(form, path));
 }
 
 function sourceSlotAt(form: InternalFormStore, path: Path): SourceSlot {
@@ -110,7 +110,7 @@ function formulaValueAt(form: InternalFormStore, path: Path): DerivedState {
   return slot.formulaValue.value;
 }
 
-const wire = [companionsWire, derivationWire];
+const wire = [envelopesWire, derivationWire];
 
 describe("meta channel", () => {
   describe("source envelope decode", () => {
@@ -182,7 +182,7 @@ describe("meta channel", () => {
     });
 
     test("should create the mode signal even without a calc engine", () => {
-      // companions is its own plugin — it does not need derivation
+      // envelopes is its own plugin — it does not need derivation
       const store = createTestStore(
         objectSchema({ fee: estimateField("double") }),
         {
@@ -238,7 +238,7 @@ describe("meta channel", () => {
 
     test("should split one envelope into the value leaf and the plugin's meta half", () => {
       // Both halves ride ONE key and go through the same `unwrap`, so they
-      // cannot disagree — there is no companion side-channel to decode
+      // cannot disagree — there is no envelope side-channel to decode
       const store = createTestStore(schema, {
         initialInput: decodeRecord(
           schema,
@@ -253,7 +253,7 @@ describe("meta channel", () => {
               },
             },
           },
-          { envelopes: envelopeContracts([companionsWire]) },
+          { envelopes: envelopeContracts([envelopesWire]) },
         ),
       });
 
@@ -297,7 +297,7 @@ describe("meta channel", () => {
               straySource: { mode: "manual" },
             },
           },
-          { envelopes: envelopeContracts([companionsWire]) },
+          { envelopes: envelopeContracts([envelopesWire]) },
         ),
       });
       expect(sourceSlotAt(store, ["fee"]).mode.value).toBe("estimate");
@@ -586,7 +586,7 @@ describe("meta channel", () => {
     /**
      * A row's envelope rides the row object's own field key
      * (`{ fee: { value, source } }`) — the same convention as the root, one
-     * scope down. There is no companion bag at any depth.
+     * scope down. There is no envelope bag at any depth.
      */
     const rowSchema = (extra: Record<string, JsonSchema> = {}) =>
       objectSchema({
@@ -714,7 +714,7 @@ describe("meta channel", () => {
       expect(slot.manualValue.value).toBe(20);
     });
 
-    test("setMode should still throw for a row field with no companion slot", () => {
+    test("setMode should still throw for a row field with no envelope slot", () => {
       const store = createTestStore(rowSchema(), {
         initialInput: { a: 1, rows: [{ id: "r1", a: 10 }] },
         engine: makeEngine(doubleA()),

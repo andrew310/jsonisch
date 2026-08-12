@@ -196,7 +196,7 @@ export interface InternalObjectStore extends InternalBaseStore {
  * Inputs are `unknown` — our schemas are runtime DB data, so there is no
  * compile-time value inference.
  *
- * Feature state (derivation channels, companion meta, visibility beyond
+ * Feature state (derivation channels, envelope meta, visibility beyond
  * the base rule) lives in plugin slots keyed by this store's identity
  * (`FieldSlotKey`), never here — core's field shape has no compile-time
  * dependency on any feature.

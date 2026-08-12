@@ -1,6 +1,6 @@
 import { getFieldStore } from "../field/get-field-store";
 import { createFormStore } from "../form/create-form-store";
-import { companions } from "../../plugins/companions/plugin";
+import { envelopes } from "../../plugins/envelopes/plugin";
 import { derivation } from "../../plugins/derivation/plugin";
 import { visibility } from "../../plugins/visibility/plugin";
 import type { PluginsInput } from "../plugin/types";
@@ -25,7 +25,7 @@ interface CreateTestStoreConfig {
   initialInput?: unknown;
   /**
    * The calc engine the derivation plugin is registered with. Omit for a
-   * form with no derivation (companions + visibility still register — the
+   * form with no derivation (envelopes + visibility still register — the
    * standard trio minus the engine-dependent member).
    */
   engine?: CalcEngine;
@@ -38,7 +38,7 @@ interface CreateTestStoreConfig {
 
 /**
  * Builds the standard first-party plugin trio in its required array order:
- * companions first (derivation `dependsOn` it and throws otherwise),
+ * envelopes first (derivation `dependsOn` it and throws otherwise),
  * derivation only when an engine is supplied, visibility last (a WHEN
  * watching a formula field resolves through its derived slot).
  *
@@ -47,7 +47,7 @@ interface CreateTestStoreConfig {
  * @returns The plugins array for `createFormStore`.
  */
 export function testPlugins(engine?: CalcEngine): PluginsInput {
-  return [companions(), engine && derivation(engine), visibility()];
+  return [envelopes(), engine && derivation(engine), visibility()];
 }
 
 /**

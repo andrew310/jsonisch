@@ -1,8 +1,8 @@
 import { getFieldStore } from "../core/field/get-field-store";
 import { batch, untrack } from "../core/framework";
 import type { Path } from "../core/types";
-import { companionsKey } from "../plugins/companions/key";
-import type { EntryMode, HybridSlot } from "../plugins/companions/types";
+import { envelopesKey } from "../plugins/envelopes/key";
+import type { EntryMode, HybridSlot } from "../plugins/envelopes/types";
 import { type FormRef, internalOf } from "./form-ref";
 
 function hybridSlotOf(form: FormRef, path: Path): HybridSlot {
@@ -10,11 +10,11 @@ function hybridSlotOf(form: FormRef, path: Path): HybridSlot {
   const store = getFieldStore(internalFormStore, path);
   const slot =
     store.kind === "value"
-      ? companionsKey.get(internalFormStore, store)
+      ? envelopesKey.get(internalFormStore, store)
       : undefined;
   if (slot?.family !== "hybrid") {
     throw new Error(
-      `Not an amount-or-percent field (at ${JSON.stringify(path)}) — needs a field with a hybrid companion slot`,
+      `Not an amount-or-percent field (at ${JSON.stringify(path)}) — needs a field with a hybrid envelope slot`,
     );
   }
   return slot;

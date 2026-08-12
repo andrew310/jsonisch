@@ -10,10 +10,10 @@ import type {
   InternalObjectStore,
   InternalValueStore,
 } from "../../core/types";
-import { companionsKey } from "./key";
-import { companionsWire, wrapEntry, wrapSource } from "./wire";
+import { envelopesKey } from "./key";
+import { envelopesWire, wrapEntry, wrapSource } from "./wire";
 import type {
-  CompanionSlot,
+  EnvelopeSlot,
   EntryMeta,
   EntryMode,
   HybridSlot,
@@ -22,10 +22,10 @@ import type {
 } from "./types";
 
 /**
- * The companions plugin's state: one slot per estimate/amount-or-percent
+ * The envelopes plugin's state: one slot per estimate/amount-or-percent
  * value store, keyed by store identity.
  */
-export type CompanionState = Map<InternalFieldStore, CompanionSlot>;
+export type EnvelopeState = Map<InternalFieldStore, EnvelopeSlot>;
 
 /**
  * Reads a field's meta half out of its scope's raw value: the raw is the
@@ -34,7 +34,7 @@ export type CompanionState = Map<InternalFieldStore, CompanionSlot>;
  * itself (`myField: { value, source }`).
  */
 function rawMetaOf(raw: unknown, key: string): Record<string, unknown> {
-  return companionsWire.unwrap!(readOwn(raw, key)).meta;
+  return envelopesWire.unwrap!(readOwn(raw, key)).meta;
 }
 
 /**
@@ -77,7 +77,7 @@ function resolveHybridEntry(
  * to the mode signal keep tracking it.
  */
 function buildScopeSlots(
-  state: CompanionState,
+  state: EnvelopeState,
   scope: InternalObjectStore,
   raw: unknown,
 ): void {
@@ -94,7 +94,7 @@ function buildScopeSlots(
 }
 
 function buildSourceSlot(
-  state: CompanionState,
+  state: EnvelopeState,
   store: InternalValueStore,
   meta: SourceMeta,
 ): void {
@@ -132,7 +132,7 @@ function buildSourceSlot(
 }
 
 function buildHybridSlot(
-  state: CompanionState,
+  state: EnvelopeState,
   store: InternalValueStore,
   meta: EntryMeta,
 ): void {
@@ -176,7 +176,7 @@ function buildHybridSlot(
  * flip or entry-state change survives a save round-trip.
  */
 function rebaseScopeSlots(
-  state: CompanionState,
+  state: EnvelopeState,
   scope: InternalObjectStore,
   raw: unknown,
 ): void {
@@ -264,7 +264,7 @@ function encodeSourceMeta(
  * Never short-circuits — this runs inside the `isDirty` aggregate
  * computed, and an unread branch would deafen the projection.
  */
-function hasDirtySlot(state: CompanionState, store: InternalFieldStore): boolean {
+function hasDirtySlot(state: EnvelopeState, store: InternalFieldStore): boolean {
   if (store.kind === "value") {
     return state.get(store)?.isDirty.value ?? false;
   }
@@ -284,18 +284,18 @@ function hasDirtySlot(state: CompanionState, store: InternalFieldStore): boolean
 }
 
 /**
- * The companions plugin: owns the meta half of estimate and
+ * The envelopes plugin: owns the meta half of estimate and
  * amount-or-percent fields — mode/entry state decoded from the nested
  * envelope (`{ value, source | entry }`, LOS-573), dirty-tracked, and
  * serialized by wrapping the field's own payload entry. No factory
  * arguments: the envelope rides the field key, so every scope's raw value
- * already carries the meta half (no companion side-channel to decode).
+ * already carries the meta half (no envelope side-channel to decode).
  */
-export function companions(): JsonischPlugin<CompanionState> {
+export function envelopes(): JsonischPlugin<EnvelopeState> {
   return {
-    name: "companions",
-    key: companionsKey,
-    wire: companionsWire,
+    name: "envelopes",
+    key: envelopesKey,
+    wire: envelopesWire,
 
     build: () => new Map(),
 
@@ -420,7 +420,7 @@ export function companions(): JsonischPlugin<CompanionState> {
       });
     },
 
-    isDirty(ctx: PluginCtx<CompanionState>) {
+    isDirty(ctx: PluginCtx<EnvelopeState>) {
       return hasDirtySlot(ctx.state, ctx.form);
     },
 
