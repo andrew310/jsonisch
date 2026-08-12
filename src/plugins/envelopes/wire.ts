@@ -2,50 +2,40 @@ import type { WireContract, WireEnvelope } from "../../core/plugin/types";
 import { readOwn } from "../../core/schema-utils";
 import type { EntryMeta, SourceMeta } from "./types";
 
-/**
- * The envelope key the source family's meta half nests under
- * (`myField: { value, source }`).
- */
-export const SOURCE_ENVELOPE_KEY = "source";
+/** Discriminator of a persisted estimate / amount-or-percent envelope. */
+export type EnvelopeKind = "estimate" | "amount-or-percent";
 
 /**
- * The envelope key the hybrid family's meta half nests under
- * (`myField: { value, entry }`).
- */
-export const ENTRY_ENVELOPE_KEY = "entry";
-
-/**
- * Returns whether a raw persisted entry is an envelope: an object carrying
- * at least one of the envelope's own keys. Anything else — including the
- * bare scalars every non-envelope field persists — is a bare value.
+ * Returns whether a raw persisted entry is an envelope: an object whose
+ * `kind` is `estimate` or `amount-or-percent`. Anything else — including
+ * the bare scalars every non-envelope field persists — is a bare value.
  */
 export function isEnvelope(raw: unknown): raw is Record<string, unknown> {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return false;
-  return (
-    Object.prototype.hasOwnProperty.call(raw, "value") ||
-    Object.prototype.hasOwnProperty.call(raw, SOURCE_ENVELOPE_KEY) ||
-    Object.prototype.hasOwnProperty.call(raw, ENTRY_ENVELOPE_KEY)
-  );
+  const kind = (raw as { kind?: unknown }).kind;
+  return kind === "estimate" || kind === "amount-or-percent";
 }
 
+/** Meta keys only — `kind` and `value` are the envelope's own halves. */
 function metaOf(raw: Record<string, unknown>): Record<string, unknown> {
-  const meta =
-    readOwn(raw, SOURCE_ENVELOPE_KEY) ?? readOwn(raw, ENTRY_ENVELOPE_KEY);
-  return meta && typeof meta === "object" && !Array.isArray(meta)
-    ? (meta as Record<string, unknown>)
-    : {};
+  const meta: Record<string, unknown> = {};
+  for (const key of Object.keys(raw)) {
+    if (key === "kind" || key === "value") continue;
+    meta[key] = raw[key];
+  }
+  return meta;
 }
 
 /**
  * Wraps an estimate field's halves into its envelope. The value key is
  * OMITTED when `value` is `undefined` (formula mode ships
- * `{ source: { mode: "calculated" } }` and lets the server recompute
+ * `{ kind: "estimate", mode: "formula" }` and lets the server recompute
  * author the value half).
  */
-export function wrapSource(value: unknown, meta: SourceMeta): unknown {
-  return value === undefined
-    ? { [SOURCE_ENVELOPE_KEY]: meta }
-    : { value, [SOURCE_ENVELOPE_KEY]: meta };
+export function wrapEstimate(value: unknown, meta: SourceMeta): unknown {
+  const envelope: Record<string, unknown> = { kind: "estimate", ...meta };
+  if (value !== undefined) envelope.value = value;
+  return envelope;
 }
 
 /**
@@ -53,8 +43,8 @@ export function wrapSource(value: unknown, meta: SourceMeta): unknown {
  * complete — an envelope is one bag key, so a partial write would clobber
  * the persisted other half.
  */
-export function wrapEntry(value: unknown, meta: EntryMeta): unknown {
-  return { value, [ENTRY_ENVELOPE_KEY]: meta };
+export function wrapHybrid(value: unknown, meta: EntryMeta): unknown {
+  return { kind: "amount-or-percent", value, ...meta };
 }
 
 /**
@@ -63,9 +53,11 @@ export function wrapEntry(value: unknown, meta: EntryMeta): unknown {
  * (`encodeDirty`), the recompute pass, and engine-less readers
  * (changelog, list pages), with no form store anywhere (D7).
  *
- * Envelope shape (LOS-573): estimate fields persist
- * `{ value, source: { mode, manualValue, lastFlippedAt? } }`,
- * amount-or-percent fields `{ value, entry: { mode, denominator } }`.
+ * Envelope shape: estimate fields persist
+ * `{ kind: "estimate", value?, mode, manualValue?, lastFlippedAt? }`,
+ * amount-or-percent fields
+ * `{ kind: "amount-or-percent", value, mode, basis? }`.
+ * Wire `mode` uses settled names (`estimate`/`formula`, `amount`/`percent`).
  * Only these two controls grow the envelope; scalars stay bare.
  */
 export const envelopesWire: WireContract = {
@@ -81,9 +73,9 @@ export const envelopesWire: WireContract = {
   },
 
   /**
-   * Server-side enforcement of the LOS-461 skip policy on an outgoing
-   * envelope (the twin of the client plugin's `encodeValue`): an estimate
-   * value persists exactly when its meta pins `mode: "manual"` — any other
+   * Server-side enforcement of the skip policy on an outgoing envelope
+   * (the twin of the client plugin's `encodeValue`): an estimate value
+   * persists exactly when its meta pins `mode: "estimate"` — any other
    * mode strips the value half and leaves the recompute pass as its only
    * author. A bare estimate value with no envelope has no pin and is
    * dropped entirely. Amount-or-percent envelopes pass through.
@@ -92,7 +84,7 @@ export const envelopesWire: WireContract = {
     if (control !== "estimate") return raw;
     if (!isEnvelope(raw)) return undefined;
     const meta = metaOf(raw);
-    if (meta.mode === "manual") return raw;
-    return { [SOURCE_ENVELOPE_KEY]: meta };
+    if (meta.mode === "estimate") return raw;
+    return wrapEstimate(undefined, meta as SourceMeta);
   },
 };

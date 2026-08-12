@@ -25,9 +25,9 @@ export interface WireEnvelope {
  */
 export interface WireContract {
   /**
-   * The controls whose persisted shape is the nested envelope
-   * (`{ value, source | entry }`). Core's decode paths unwrap these at the
-   * value leaf; everything else stays a bare value.
+   * The controls whose persisted shape is the kind-discriminated envelope.
+   * Core's decode paths unwrap these at the value leaf; everything else
+   * stays a bare value.
    */
   readonly envelopeControls?: readonly string[];
   /**
@@ -49,7 +49,7 @@ export interface WireContract {
    * Normalizes a declared key's outgoing value in `encodeDirty` — the
    * server-side enforcement twin of the client plugin's `encodeValue` (e.g.
    * stripping the value half of an estimate envelope that does not pin
-   * `mode: "manual"`). Returning `undefined` drops the key.
+   * `mode: "estimate"`). Returning `undefined` drops the key.
    */
   readonly encode?: (control: string, raw: unknown) => unknown;
 }

@@ -5,7 +5,7 @@ import type { JsonSchema } from "../types";
 
 /**
  * The save payload partitioned by record geometry: real table columns and
- * `data` JSONB bag entries. Envelope fields (`{ value, source | entry }`)
+ * `data` JSONB bag entries. Envelope fields (kind-discriminated union)
  * always land WHOLE in `data`; an `x-column: true` envelope field also
  * mirrors its value half into `columns` (a write-through scalar for SQL
  * and list pages — the bag stays the source of truth).
@@ -64,7 +64,7 @@ export function envelopeContracts(
  * relocated verbatim from LOS-461, not redesigned): `skipValue` drops a
  * formula value (the server recompute is its only author), and an
  * envelope contract's `encode` normalizes the outgoing envelope (an
- * estimate value persists exactly when its meta pins `mode: "manual"`).
+ * estimate value persists exactly when its meta pins `mode: "estimate"`).
  *
  * @param schema The form's JSON-Schema (object schema with properties).
  * @param dirty The dirty values, or `undefined` when nothing is dirty.

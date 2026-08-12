@@ -122,7 +122,7 @@ describe("meta channel", () => {
         {
           initialInput: {
             a: 10,
-            fee: { value: 999, source: { mode: "calculated", manualValue: "999" } },
+            fee: { kind: "estimate", value: 999, mode: "formula", manualValue: "999"  },
           },
           engine: makeEngine(doubleA()),
         },
@@ -137,7 +137,7 @@ describe("meta channel", () => {
         {
           initialInput: {
             a: 10,
-            fee: { value: 1234, source: { mode: "manual", manualValue: "1234" } },
+            fee: { kind: "estimate", value: 1234, mode: "estimate", manualValue: "1234"  },
           },
           engine: makeEngine(doubleA()),
         },
@@ -153,7 +153,7 @@ describe("meta channel", () => {
       const store = createTestStore(
         objectSchema({ a: { type: "number" }, fee: estimateField("double") }),
         {
-          initialInput: { a: 10, fee: { source: { manualValue: "5" } } },
+          initialInput: { a: 10, fee: { kind: "estimate", manualValue: "5" } },
           engine: makeEngine(doubleA()),
         },
       );
@@ -186,7 +186,7 @@ describe("meta channel", () => {
       const store = createTestStore(
         objectSchema({ fee: estimateField("double") }),
         {
-          initialInput: { fee: { value: 7, source: { mode: "calculated" } } },
+          initialInput: { fee: { kind: "estimate", value: 7, mode: "formula"  } },
         },
       );
       expect(sourceSlotAt(store, ["fee"]).mode.value).toBe("formula");
@@ -205,8 +205,10 @@ describe("meta channel", () => {
         {
           initialInput: {
             fee: {
+              kind: "amount-or-percent",
               value: "5000",
-              entry: { mode: "bps", denominator: "totalCommitment" },
+              mode: "percent",
+              basis: "totalCommitment" ,
             },
           },
         },
@@ -246,10 +248,12 @@ describe("meta channel", () => {
             id: "x",
             data: {
               price: 5,
-              fee: { value: 5, source: { mode: "manual", manualValue: "5" } },
+              fee: { kind: "estimate", value: 5, mode: "estimate", manualValue: "5"  },
               points: {
+                kind: "amount-or-percent",
                 value: "100",
-                entry: { mode: "bps", denominator: "price" },
+                mode: "percent",
+                basis: "price" ,
               },
             },
           },
@@ -266,7 +270,7 @@ describe("meta channel", () => {
       });
       // …and the meta half landed on the plugin's slots
       expect(sourceSlotAt(store, ["fee"]).startMeta).toStrictEqual({
-        mode: "manual",
+        mode: "estimate",
         manualValue: "5",
       });
       const points = hybridSlotAt(store, ["points"]);
@@ -312,14 +316,14 @@ describe("meta channel", () => {
         {
           initialInput: {
             a: 10,
-            fee: { value: 1234, source: { mode: "manual", manualValue: "1234" } },
+            fee: { kind: "estimate", value: 1234, mode: "estimate", manualValue: "1234"  },
           },
           engine: makeEngine(doubleA()),
         },
       );
       setInput(store, ["fee"], "1500");
       expect(getDirtyInput(store)).toStrictEqual({
-        fee: { value: "1500", source: { mode: "manual", manualValue: "1500" } },
+        fee: { kind: "estimate", value: "1500", mode: "estimate", manualValue: "1500"  },
       });
     });
 
@@ -329,12 +333,11 @@ describe("meta channel", () => {
         {
           initialInput: {
             fee: {
+              kind: "estimate",
               value: 1,
-              source: {
-                mode: "manual",
-                manualValue: "1",
+              mode: "estimate",
+              manualValue: "1",
                 lastFlippedAt: "2026-08-01T00:00:00.000Z",
-              },
             },
           },
         },
@@ -342,12 +345,11 @@ describe("meta channel", () => {
       setInput(store, ["fee"], "2");
       expect(getDirtyInput(store)).toStrictEqual({
         fee: {
+          kind: "estimate",
           value: "2",
-          source: {
-            mode: "manual",
-            manualValue: "2",
+          mode: "estimate",
+          manualValue: "2",
             lastFlippedAt: "2026-08-01T00:00:00.000Z",
-          },
         },
       });
     });
@@ -358,7 +360,7 @@ describe("meta channel", () => {
         {
           initialInput: {
             a: 10,
-            fee: { value: 1234, source: { mode: "manual", manualValue: "1234" } },
+            fee: { kind: "estimate", value: 1234, mode: "estimate", manualValue: "1234"  },
           },
           engine: makeEngine(doubleA()),
         },
@@ -371,11 +373,10 @@ describe("meta channel", () => {
       // dropped entirely: the server recompute authors it (LOS-461)
       expect(getDirtyInput(store)).toStrictEqual({
         fee: {
-          source: {
-            mode: "calculated",
-            manualValue: "1234",
+          kind: "estimate",
+          mode: "formula",
+          manualValue: "1234",
             lastFlippedAt: "2026-08-04T12:00:00.000Z",
-          },
         },
       });
     });
@@ -394,8 +395,10 @@ describe("meta channel", () => {
       expect(hybridSlotAt(store, ["points"]).isDirty.value).toBe(false);
       expect(getDirtyInput(store)).toStrictEqual({
         points: {
+          kind: "amount-or-percent",
           value: "6000",
-          entry: { mode: "fixed_amount", denominator: "purchasePrice" },
+          mode: "amount",
+          basis: "purchasePrice" ,
         },
       });
 
@@ -403,8 +406,10 @@ describe("meta channel", () => {
       setPercentBasis(store, ["points"], "totalCommitment");
       expect(getDirtyInput(store)).toStrictEqual({
         points: {
+          kind: "amount-or-percent",
           value: "6000",
-          entry: { mode: "bps", denominator: "totalCommitment" },
+          mode: "percent",
+          basis: "totalCommitment" ,
         },
       });
     });
@@ -415,7 +420,7 @@ describe("meta channel", () => {
         {
           initialInput: {
             a: 10,
-            fee: { value: 1234, source: { mode: "manual", manualValue: "1234" } },
+            fee: { kind: "estimate", value: 1234, mode: "estimate", manualValue: "1234"  },
           },
           engine: makeEngine(doubleA()),
         },
@@ -423,11 +428,10 @@ describe("meta channel", () => {
       setMode(store, ["fee"], "formula", { now: "T1" });
       expect(pickDirty(store, { a: 10, fee: 1234 })).toStrictEqual({
         fee: {
-          source: {
-            mode: "calculated",
-            manualValue: "1234",
+          kind: "estimate",
+          mode: "formula",
+          manualValue: "1234",
             lastFlippedAt: "T1",
-          },
         },
       });
     });
@@ -438,8 +442,10 @@ describe("meta channel", () => {
         fee: estimateField("double"),
       });
       const envelope = {
+        kind: "estimate",
         value: "1500",
-        source: { mode: "manual", manualValue: "1500" },
+        mode: "estimate",
+        manualValue: "1500",
       };
       expect(encodeDirty(schema, { fee: envelope }, { wire })).toStrictEqual({
         columns: {},
@@ -457,12 +463,11 @@ describe("meta channel", () => {
           schema,
           {
             fee: {
+              kind: "estimate",
               value: 1234,
-              source: {
-                mode: "calculated",
-                manualValue: "1234",
+              mode: "formula",
+              manualValue: "1234",
                 lastFlippedAt: "T1",
-              },
             },
           },
           { wire },
@@ -471,11 +476,10 @@ describe("meta channel", () => {
         columns: {},
         data: {
           fee: {
-            source: {
-              mode: "calculated",
-              manualValue: "1234",
+            kind: "estimate",
+            mode: "formula",
+            manualValue: "1234",
               lastFlippedAt: "T1",
-            },
           },
         },
       });
@@ -489,7 +493,7 @@ describe("meta channel", () => {
         {
           initialInput: {
             a: 10,
-            fee: { value: 1234, source: { mode: "manual", manualValue: "1234" } },
+            fee: { kind: "estimate", value: 1234, mode: "estimate", manualValue: "1234"  },
           },
           engine: makeEngine(doubleA()),
         },
@@ -510,7 +514,7 @@ describe("meta channel", () => {
         {
           initialInput: {
             a: 10,
-            fee: { value: 999, source: { mode: "calculated" } },
+            fee: { kind: "estimate", value: 999, mode: "formula"  },
           },
           engine: makeEngine(doubleA()),
         },
@@ -524,8 +528,10 @@ describe("meta channel", () => {
       expect(fee.isDirty.value).toBe(true);
       expect(getDirtyInput(store)).toStrictEqual({
         fee: {
+          kind: "estimate",
           value: 20,
-          source: { mode: "manual", manualValue: 20, lastFlippedAt: "T1" },
+          mode: "estimate",
+          manualValue: 20, lastFlippedAt: "T1",
         },
       });
     });
@@ -534,7 +540,7 @@ describe("meta channel", () => {
       const store = createTestStore(
         objectSchema({ fee: estimateField("broken") }),
         {
-          initialInput: { fee: { value: 999, source: { mode: "calculated" } } },
+          initialInput: { fee: { kind: "estimate", value: 999, mode: "formula"  } },
           engine: makeEngine(doubleA()),
         },
       );
@@ -550,7 +556,7 @@ describe("meta channel", () => {
         {
           initialInput: {
             a: 10,
-            fee: { value: 1234, source: { mode: "manual" } },
+            fee: { kind: "estimate", value: 1234, mode: "estimate"  },
           },
           engine: makeEngine(doubleA()),
         },
@@ -568,7 +574,7 @@ describe("meta channel", () => {
         {
           initialInput: {
             a: 10,
-            fee: { value: 1234, source: { mode: "manual", manualValue: "1234" } },
+            fee: { kind: "estimate", value: 1234, mode: "estimate", manualValue: "1234"  },
           },
           engine: makeEngine(doubleA()),
         },
@@ -585,7 +591,7 @@ describe("meta channel", () => {
   describe("row envelopes", () => {
     /**
      * A row's envelope rides the row object's own field key
-     * (`{ fee: { value, source } }`) — the same convention as the root, one
+     * (`{ fee: { kind: "estimate", … } }`) — the same convention as the root, one
      * scope down. There is no envelope bag at any depth.
      */
     const rowSchema = (extra: Record<string, JsonSchema> = {}) =>
@@ -611,14 +617,16 @@ describe("meta channel", () => {
               id: "r1",
               a: 10,
               fee: {
+                kind: "estimate",
                 value: 999,
-                source: { mode: "calculated", manualValue: "999" },
+                mode: "formula",
+                manualValue: "999",
               },
             },
             {
               id: "r2",
               a: 3,
-              fee: { value: 7, source: { mode: "manual", manualValue: "7" } },
+              fee: { kind: "estimate", value: 7, mode: "estimate", manualValue: "7"  },
             },
           ],
         },
@@ -676,8 +684,10 @@ describe("meta channel", () => {
               {
                 id: "r1",
                 points: {
+                  kind: "amount-or-percent",
                   value: "5000",
-                  entry: { mode: "bps", denominator: "rowBudget" },
+                  mode: "percent",
+                  basis: "rowBudget" ,
                 },
               },
             ],
@@ -694,7 +704,7 @@ describe("meta channel", () => {
         initialInput: {
           a: 1,
           rows: [
-            { id: "r1", a: 10, fee: { value: 999, source: { mode: "calculated" } } },
+            { id: "r1", a: 10, fee: { kind: "estimate", value: 999, mode: "formula"  } },
           ],
         },
         engine: makeEngine(doubleA()),
@@ -732,12 +742,12 @@ describe("meta channel", () => {
             {
               id: "r1",
               a: 10,
-              fee: { value: 1234, source: { mode: "manual", manualValue: "1234" } },
+              fee: { kind: "estimate", value: 1234, mode: "estimate", manualValue: "1234"  },
             },
             {
               id: "r2",
               a: 3,
-              fee: { value: 6, source: { mode: "manual", manualValue: "6" } },
+              fee: { kind: "estimate", value: 6, mode: "estimate", manualValue: "6"  },
             },
           ],
         },
@@ -756,17 +766,16 @@ describe("meta channel", () => {
             id: "r1",
             a: 10,
             fee: {
-              source: {
-                mode: "calculated",
-                manualValue: "1234",
+              kind: "estimate",
+              mode: "formula",
+              manualValue: "1234",
                 lastFlippedAt: "T1",
-              },
             },
           },
           {
             id: "r2",
             a: 3,
-            fee: { value: 6, source: { mode: "manual", manualValue: "6" } },
+            fee: { kind: "estimate", value: 6, mode: "estimate", manualValue: "6"  },
           },
         ],
       });
@@ -779,7 +788,7 @@ describe("meta channel", () => {
         initialInput: {
           a: 1,
           rows: [
-            { id: "r1", a: 10, fee: { value: 1234, source: { mode: "manual" } } },
+            { id: "r1", a: 10, fee: { kind: "estimate", value: 1234, mode: "estimate"  } },
           ],
         },
         engine: makeEngine(doubleA()),
@@ -793,11 +802,10 @@ describe("meta channel", () => {
             id: "r1",
             a: 10,
             fee: {
-              source: {
-                mode: "calculated",
-                manualValue: null,
+              kind: "estimate",
+              mode: "formula",
+              manualValue: null,
                 lastFlippedAt: "T1",
-              },
             },
           },
         ],
@@ -812,7 +820,7 @@ describe("meta channel", () => {
             {
               id: "r1",
               a: 10,
-              fee: { value: 1234, source: { mode: "manual", manualValue: "1234" } },
+              fee: { kind: "estimate", value: 1234, mode: "estimate", manualValue: "1234"  },
             },
           ],
         },
@@ -825,8 +833,10 @@ describe("meta channel", () => {
             id: "r1",
             a: 10,
             fee: {
+              kind: "estimate",
               value: "1500",
-              source: { mode: "manual", manualValue: "1500" },
+              mode: "estimate",
+              manualValue: "1500",
             },
           },
         ],
@@ -841,7 +851,7 @@ describe("meta channel", () => {
             {
               id: "r1",
               a: 10,
-              fee: { value: 1234, source: { mode: "manual", manualValue: "1234" } },
+              fee: { kind: "estimate", value: 1234, mode: "estimate", manualValue: "1234"  },
             },
           ],
         },
@@ -863,8 +873,8 @@ describe("meta channel", () => {
         initialInput: {
           a: 1,
           rows: [
-            { id: "r1", a: 10, fee: { value: 1, source: { mode: "manual" } } },
-            { id: "r2", a: 20, fee: { value: 2, source: { mode: "manual" } } },
+            { id: "r1", a: 10, fee: { kind: "estimate", value: 1, mode: "estimate"  } },
+            { id: "r2", a: 20, fee: { kind: "estimate", value: 2, mode: "estimate"  } },
           ],
         },
         engine: makeEngine(doubleA()),
@@ -876,8 +886,8 @@ describe("meta channel", () => {
         data: {
           a: 1,
           rows: [
-            { id: "r1", a: 10, fee: { value: 5, source: { mode: "calculated" } } },
-            { id: "r2", a: 20, fee: { value: 2, source: { mode: "manual" } } },
+            { id: "r1", a: 10, fee: { kind: "estimate", value: 5, mode: "formula"  } },
+            { id: "r2", a: 20, fee: { kind: "estimate", value: 2, mode: "estimate"  } },
           ],
         },
       });
@@ -904,7 +914,7 @@ describe("meta channel", () => {
         initialInput: {
           id: "r2",
           a: 4,
-          fee: { value: 9, source: { mode: "calculated" } },
+          fee: { kind: "estimate", value: 9, mode: "formula"  },
         },
       });
       expect(sourceSlotAt(store, ["rows", 0, "fee"]).mode.value).toBe("formula");
@@ -923,8 +933,8 @@ describe("meta channel", () => {
         initialInput: {
           a: 1,
           rows: [
-            { id: "r1", a: 10, fee: { value: 1, source: { mode: "calculated" } } },
-            { id: "r2", a: 20, fee: { value: 2, source: { mode: "manual" } } },
+            { id: "r1", a: 10, fee: { kind: "estimate", value: 1, mode: "formula"  } },
+            { id: "r2", a: 20, fee: { kind: "estimate", value: 2, mode: "estimate"  } },
           ],
         },
         engine: makeEngine(doubleA()),
@@ -944,8 +954,8 @@ describe("meta channel", () => {
         initialInput: {
           a: 1,
           rows: [
-            { id: "r1", a: 10, fee: { value: 1, source: { mode: "manual" } } },
-            { id: "r2", a: 20, fee: { value: 2, source: { mode: "calculated" } } },
+            { id: "r1", a: 10, fee: { kind: "estimate", value: 1, mode: "estimate"  } },
+            { id: "r2", a: 20, fee: { kind: "estimate", value: 2, mode: "formula"  } },
           ],
         },
         engine: makeEngine(doubleA()),
@@ -959,8 +969,8 @@ describe("meta channel", () => {
         initialInput: {
           a: 1,
           rows: [
-            { id: "r1", a: 10, fee: { value: 1, source: { mode: "manual" } } },
-            { id: "r2", a: 20, fee: { value: 2, source: { mode: "manual" } } },
+            { id: "r1", a: 10, fee: { kind: "estimate", value: 1, mode: "estimate"  } },
+            { id: "r2", a: 20, fee: { kind: "estimate", value: 2, mode: "estimate"  } },
           ],
         },
         engine: makeEngine(doubleA()),
@@ -972,7 +982,7 @@ describe("meta channel", () => {
       applyBaseline(store, {
         data: {
           a: 1,
-          rows: [{ id: "r1", a: 10, fee: { value: 1, source: { mode: "manual" } } }],
+          rows: [{ id: "r1", a: 10, fee: { kind: "estimate", value: 1, mode: "estimate"  } }],
         },
       });
 
@@ -985,8 +995,8 @@ describe("meta channel", () => {
         initialInput: {
           a: 1,
           rows: [
-            { id: "r1", a: 10, fee: { value: 1, source: { mode: "calculated" } } },
-            { id: "r2", a: 20, fee: { value: 2, source: { mode: "manual" } } },
+            { id: "r1", a: 10, fee: { kind: "estimate", value: 1, mode: "formula"  } },
+            { id: "r2", a: 20, fee: { kind: "estimate", value: 2, mode: "estimate"  } },
           ],
         },
         engine: makeEngine(doubleA()),
@@ -1008,7 +1018,7 @@ describe("meta channel", () => {
         {
           initialInput: {
             a: 10,
-            fee: { value: 1234, source: { mode: "manual", manualValue: "1234" } },
+            fee: { kind: "estimate", value: 1234, mode: "estimate", manualValue: "1234"  },
             points: "5000",
           },
           engine: makeEngine(doubleA()),
@@ -1040,8 +1050,8 @@ describe("meta channel", () => {
         {
           initialInput: {
             a: 10,
-            fee: { value: 1234, source: { mode: "manual", manualValue: "1234" } },
-            other: { value: 7, source: { mode: "manual", manualValue: "7" } },
+            fee: { kind: "estimate", value: 1234, mode: "estimate", manualValue: "1234"  },
+            other: { kind: "estimate", value: 7, mode: "estimate", manualValue: "7"  },
           },
           engine: makeEngine(doubleA()),
         },

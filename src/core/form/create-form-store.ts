@@ -72,7 +72,7 @@ export function createFormStore(config: FormConfig): InternalFormStore {
 
   // Wire the ROOT scope's plugin passes over the walked tree, in plugin
   // array order. The raw initial input carries every envelope field's meta
-  // half (`{ value, source | entry }`), so there is no side-channel decode.
+  // half (`{ kind, value?, mode, … }`), so there is no side-channel decode.
   dispatchBuildScope(form, form, config.initialInput);
 
   // Cache the form-level aggregates as computeds LAST, over the fully

@@ -18,7 +18,7 @@ import { type FormRef, internalOf } from "./form-ref";
  * `undefined` if no field is dirty or no dirty key is present in the value.
  *
  * Envelope leaves (estimate/amount-or-percent) emit their COMPLETE
- * `{ value, source | entry }` envelope — the plugin wraps the supplied
+ * kind envelope — the plugin wraps the supplied
  * value with its meta half, and a leaf whose only change is plugin state
  * (a mode flip) still emits.
  *

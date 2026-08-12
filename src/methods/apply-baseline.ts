@@ -22,7 +22,7 @@ export interface ApplyBaselineConfig {
  * Rebases a live form on a fresh server-loaded record — after a save or a
  * revalidate, the store adopts the record as its new baseline instead of
  * being torn down and rebuilt: the record decodes through the `x-column`
- * codec (envelope fields keep their `{ value, source | entry }` shape for
+ * codec (envelope fields keep their kind-discriminated shape for
  * the plugin rebase), clean fields
  * take the new server value, dirty fields keep the user's in-flight edit
  * re-diffed against the new baseline (an edit equal to the fresh server

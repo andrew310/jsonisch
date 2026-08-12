@@ -11,7 +11,7 @@ import type {
   InternalValueStore,
 } from "../../core/types";
 import { envelopesKey } from "./key";
-import { envelopesWire, wrapEntry, wrapSource } from "./wire";
+import { envelopesWire, wrapEstimate, wrapHybrid } from "./wire";
 import type {
   EnvelopeSlot,
   EntryMeta,
@@ -31,27 +31,27 @@ export type EnvelopeState = Map<InternalFieldStore, EnvelopeSlot>;
  * Reads a field's meta half out of its scope's raw value: the raw is the
  * decoded record at the root and the row's own object inside an array —
  * one convention at every depth, because the envelope rides the field key
- * itself (`myField: { value, source }`).
+ * itself (`myField: { kind, value?, mode, … }`).
  */
 function rawMetaOf(raw: unknown, key: string): Record<string, unknown> {
   return envelopesWire.unwrap!(readOwn(raw, key)).meta;
 }
 
 /**
- * Resolves the mode a `source` meta decodes to: the persisted meta wins;
- * without one the field opens as `estimate` — the manual-first default
- * (LOS-461), so a fresh field is always typeable. The settled LOS-515 rule
- * keeps the modes honest without a heuristic: an EMPTY estimate silently
- * defers to the formula (derivation + server recompute both fall through),
- * and a typed estimate pins with a `manual` meta on save.
+ * Resolves the mode a persisted estimate meta decodes to: the persisted
+ * meta wins; without one the field opens as `estimate` — the manual-first
+ * default (LOS-461), so a fresh field is always typeable. An EMPTY
+ * estimate silently defers to the formula (derivation + server recompute
+ * both fall through), and a typed estimate pins with `mode: "estimate"`
+ * on save.
  */
 function resolveSourceMode(meta: SourceMeta): DerivationMode {
-  return meta.mode === "calculated" ? "formula" : "estimate";
+  return meta.mode === "formula" ? "formula" : "estimate";
 }
 
 /**
- * Resolves the entry state an `entry` meta decodes to, falling back to the
- * schema's declared default denominator.
+ * Resolves the entry state a persisted hybrid meta decodes to, falling
+ * back to the schema's declared default denominator.
  */
 function resolveHybridEntry(
   meta: EntryMeta,
@@ -59,10 +59,10 @@ function resolveHybridEntry(
 ): { entryMode: EntryMode; percentBasis: string | undefined } {
   const schemaDefault = schema["x-hybrid-default-denominator"];
   return {
-    entryMode: meta.mode === "bps" ? "percent" : "amount",
+    entryMode: meta.mode === "percent" ? "percent" : "amount",
     percentBasis:
-      typeof meta.denominator === "string"
-        ? meta.denominator
+      typeof meta.basis === "string"
+        ? meta.basis
         : typeof schemaDefault === "string" && schemaDefault !== ""
           ? schemaDefault
           : undefined,
@@ -226,12 +226,11 @@ function rebaseHybridSlot(
 }
 
 /**
- * Serializes a source slot's meta half — byte-compatible with the legacy
- * `<key>Source` blob, now nested as the envelope's `source` key. In
- * estimate mode an EDITED input is the manual value (keystrokes mirror
- * into the meta — never the loaded column value); an unedited one carries
- * the decoded `manualValue` forward. In formula mode the value preserved
- * at flip time carries forward.
+ * Serializes a source slot's meta half. In estimate mode an EDITED input
+ * is the manual value (keystrokes mirror into the meta — never the loaded
+ * column value); an unedited one carries the decoded `manualValue`
+ * forward. In formula mode the value preserved at flip time carries
+ * forward.
  */
 function encodeSourceMeta(
   store: InternalValueStore,
@@ -239,7 +238,7 @@ function encodeSourceMeta(
 ): SourceMeta {
   const mode = slot.mode.value;
   const meta: SourceMeta = {
-    mode: mode === "formula" ? "calculated" : "manual",
+    mode,
     manualValue:
       mode === "estimate"
         ? store.isDirty.value
@@ -285,11 +284,11 @@ function hasDirtySlot(state: EnvelopeState, store: InternalFieldStore): boolean 
 
 /**
  * The envelopes plugin: owns the meta half of estimate and
- * amount-or-percent fields — mode/entry state decoded from the nested
- * envelope (`{ value, source | entry }`, LOS-573), dirty-tracked, and
- * serialized by wrapping the field's own payload entry. No factory
- * arguments: the envelope rides the field key, so every scope's raw value
- * already carries the meta half (no envelope side-channel to decode).
+ * amount-or-percent fields — mode/entry state decoded from the kind
+ * envelope, dirty-tracked, and serialized by wrapping the field's own
+ * payload entry. No factory arguments: the envelope rides the field key,
+ * so every scope's raw value already carries the meta half (no envelope
+ * side-channel to decode).
  */
 export function envelopes(): JsonischPlugin<EnvelopeState> {
   return {
@@ -375,12 +374,11 @@ export function envelopes(): JsonischPlugin<EnvelopeState> {
       return ctx.state.get(store)?.isDirty.value ?? false;
     },
 
-    // The LOS-573 reshape: wrap your own payload entry — no sibling keys,
-    // and the envelope is always COMPLETE (it is one bag key; a partial
-    // write would clobber the persisted other half). LOS-461 relocated,
-    // not redesigned: a pinned manual persists the typed value; formula
-    // mode ships `{ source: { mode: "calculated" } }` with no value half
-    // and lets the server recompute author it.
+    // Wrap your own payload entry — no sibling keys, and the envelope is
+    // always COMPLETE (it is one bag key; a partial write would clobber
+    // the persisted other half). A pinned estimate persists the typed
+    // value; formula mode ships `{ kind: "estimate", mode: "formula" }`
+    // with no value half and lets the server recompute author it.
     encodeValue(ctx, store, valueOut) {
       const slot = ctx.state.get(store);
       if (!slot) return undefined;
@@ -392,7 +390,7 @@ export function envelopes(): JsonischPlugin<EnvelopeState> {
         // fabricated pin: a virgin estimate (no envelope ever saved) stays
         // a bare value, which the wire policy drops, exactly as an
         // unpinned estimate posts nothing today. Fabricating
-        // `mode: "manual"` here would pin every virgin estimate empty and
+        // `mode: "estimate"` here would pin every virgin estimate empty and
         // the recompute would preserve the empty forever.
         if (!slot.isDirty.value) {
           const persisted = slot.startMeta.mode;
@@ -404,19 +402,19 @@ export function envelopes(): JsonischPlugin<EnvelopeState> {
           if (slot.startMeta.lastFlippedAt !== undefined) {
             meta.lastFlippedAt = slot.startMeta.lastFlippedAt;
           }
-          return persisted === "manual"
-            ? wrapSource(valueOut, meta)
-            : wrapSource(undefined, meta);
+          return persisted === "estimate"
+            ? wrapEstimate(valueOut, meta)
+            : wrapEstimate(undefined, meta);
         }
 
         const meta = encodeSourceMeta(store, slot);
         return slot.mode.value === "estimate"
-          ? wrapSource(valueOut !== undefined ? valueOut : store.input.value, meta)
-          : wrapSource(undefined, meta);
+          ? wrapEstimate(valueOut !== undefined ? valueOut : store.input.value, meta)
+          : wrapEstimate(undefined, meta);
       }
-      return wrapEntry(valueOut !== undefined ? valueOut : store.input.value, {
-        mode: slot.entryMode.value === "percent" ? "bps" : "fixed_amount",
-        denominator: slot.percentBasis.value ?? "",
+      return wrapHybrid(valueOut !== undefined ? valueOut : store.input.value, {
+        mode: slot.entryMode.value,
+        basis: slot.percentBasis.value ?? "",
       });
     },
 

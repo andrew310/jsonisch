@@ -114,7 +114,7 @@ export function initializeFieldStore(
     // loaded with. Plugins run in array order — for the standard trio the
     // envelopes pass (whose mode signal the estimate pin reads) precedes
     // derivation, exactly as at the root. The row's own raw object carries
-    // each envelope field's meta half (`{ value, source | entry }`), so it
+    // each envelope field's meta half, so it
     // IS the scope's raw. Skipped for the form root (path `[]`, dispatched
     // by `createFormStore` after the walk) and plain nested objects.
     if (typeof path[path.length - 1] === "number") {
@@ -194,7 +194,7 @@ export function initializeFieldStore(
     valueStore.kind = "value";
 
     // An envelope-control leaf's raw input is the whole envelope
-    // (`{ value, source | entry }`) — the value half becomes the input;
+    // (`{ kind, value?, mode, … }`) — the value half becomes the input;
     // the plugin re-reads the same raw for its meta half in `buildScope`
     const valueInput = resolveValueInput(
       internalFormStore.emptyInput,

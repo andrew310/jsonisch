@@ -16,7 +16,7 @@ import { readOwn } from "../schema-utils";
  *
  * Plugin state serializes THROUGH the field's own entry (the LOS-573
  * envelope): a dirty estimate/amount-or-percent leaf emits
- * `{ value, source | entry }` in place of its bare value — a mode flip
+ * kind envelope in place of its bare value — a mode flip
  * with an unchanged value still produces a payload. Inside an emitted
  * array every envelope leaf is wrapped COMPLETE, dirty or not: rows
  * persist wholesale, and a bare value would clobber the persisted meta

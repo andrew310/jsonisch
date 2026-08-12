@@ -1,12 +1,12 @@
 /**
  * How a server record becomes form state — one decode, then a fork:
  *
- *   Postgres row { …columns, data: { myField: { value, source|entry } } }
+ *   Postgres row { …columns, data: { myField: { kind, value?, mode, … } } }
  *        │
  *        │  ① decodeRecord (this file): schema-declared keys only,
  *        │     envelopes pass through WHOLE
  *        ▼
- *   initialInput { myField: { value, source } }
+ *   initialInput { myField: { kind, value?, mode, … } }
  *        │
  *        │  ② createFormStore visits each declared field; an
  *        │     estimate/amount-or-percent field's envelope is read TWICE,
@@ -58,7 +58,7 @@ export interface DecodeRecordOptions {
  * undeclared record keys (including prototype-pollution keys) never enter
  * the result. Nested values pass through as-is; the store walk applies the
  * allow-list recursively when the result becomes `initialInput`, and
- * unwraps envelope leaves (`{ value, source | entry }`) through the
+ * unwraps envelope leaves (`{ kind, value?, mode, … }`) through the
  * registered wire contracts.
  *
  * For flat-JSONB surfaces without column routing (e.g. workflow form

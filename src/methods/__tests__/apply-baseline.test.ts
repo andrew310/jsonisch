@@ -247,13 +247,13 @@ describe("applyBaseline", () => {
     test("should adopt the fresh envelope mode on a clean mode", () => {
       const store = createTestStore(estimateSchema, {
         initialInput: {
-          price: { value: 10, source: { mode: "manual", manualValue: 10 } },
+          price: { kind: "estimate", value: 10, mode: "estimate", manualValue: 10  },
         },
       });
       expect(sourceSlotAt(store, ["price"]).mode.value).toBe("estimate");
 
       applyBaseline(store, {
-        data: { price: { value: 42, source: { mode: "calculated" } } },
+        data: { price: { kind: "estimate", value: 42, mode: "formula"  } },
       });
 
       const price = sourceSlotAt(store, ["price"]);
@@ -266,7 +266,7 @@ describe("applyBaseline", () => {
     test("should keep a user mode flip and turn it clean when it matches the fresh envelope", () => {
       const store = createTestStore(estimateSchema, {
         initialInput: {
-          price: { value: 10, source: { mode: "manual", manualValue: 10 } },
+          price: { kind: "estimate", value: 10, mode: "estimate", manualValue: 10  },
         },
       });
       setMode(store, ["price"], "formula", { now: "2026-08-04T00:00:00Z" });
@@ -274,7 +274,7 @@ describe("applyBaseline", () => {
 
       // The post-save echo persisted the flip
       applyBaseline(store, {
-        data: { price: { value: 42, source: { mode: "calculated" } } },
+        data: { price: { kind: "estimate", value: 42, mode: "formula"  } },
       });
 
       const price = sourceSlotAt(store, ["price"]);
@@ -285,14 +285,14 @@ describe("applyBaseline", () => {
     test("should keep a user mode flip that differs from the fresh envelope", () => {
       const store = createTestStore(estimateSchema, {
         initialInput: {
-          price: { value: 10, source: { mode: "manual", manualValue: 10 } },
+          price: { kind: "estimate", value: 10, mode: "estimate", manualValue: 10  },
         },
       });
       setMode(store, ["price"], "formula", { now: "2026-08-04T00:00:00Z" });
 
       applyBaseline(store, {
         data: {
-          price: { value: 42, source: { mode: "manual", manualValue: 42 } },
+          price: { kind: "estimate", value: 42, mode: "estimate", manualValue: 42  },
         },
       });
 
@@ -309,7 +309,7 @@ describe("applyBaseline", () => {
         }),
         {
           initialInput: {
-            fee: { value: 100, entry: { mode: "fixed_amount", denominator: "" } },
+            fee: { kind: "amount-or-percent", value: 100, mode: "amount", basis: ""  },
           },
         },
       );
@@ -317,7 +317,7 @@ describe("applyBaseline", () => {
 
       applyBaseline(store, {
         data: {
-          fee: { value: 100, entry: { mode: "bps", denominator: "loanAmount" } },
+          fee: { kind: "amount-or-percent", value: 100, mode: "percent", basis: "loanAmount"  },
         },
       });
 

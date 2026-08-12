@@ -119,8 +119,10 @@ describe("decodeRecord", () => {
 
   test("should read a bag envelope field WHOLE, both halves on one key", () => {
     const envelope = {
+      kind: "estimate",
       value: 1_210_000,
-      source: { mode: "manual", manualValue: "1210000" },
+      mode: "estimate",
+      manualValue: "1210000",
     };
     expect(
       decodeRecord(
@@ -132,7 +134,7 @@ describe("decodeRecord", () => {
   });
 
   test("should prefer the data-bag envelope over the mirrored column for an x-column envelope field", () => {
-    const envelope = { value: 750, source: { mode: "manual" } };
+    const envelope = { kind: "estimate", value: 750, mode: "estimate"  };
     expect(
       decodeRecord(
         columnEstimateSchema,
@@ -160,7 +162,7 @@ describe("decodeRecord", () => {
     expect(
       decodeRecord(columnEstimateSchema, {
         appraisedValue: 500,
-        data: { appraisedValue: { value: 750, source: { mode: "manual" } } },
+        data: { appraisedValue: { kind: "estimate", value: 750, mode: "estimate"  } },
       }),
     ).toStrictEqual({ appraisedValue: 500 });
   });
@@ -181,8 +183,10 @@ describe("encodeDirty", () => {
 
   test("should keep an amount-or-percent envelope WHOLE in the data bag", () => {
     const envelope = {
+      kind: "amount-or-percent",
       value: 7_500,
-      entry: { mode: "bps", denominator: "loanAmount" },
+      mode: "percent",
+      basis: "loanAmount" ,
     };
     expect(
       encodeDirty(loanStageSchema, { originationFee: envelope }, { wire }),
@@ -199,8 +203,10 @@ describe("encodeDirty", () => {
       {
         ltv: 0.75,
         appraisedValue: {
+          kind: "estimate",
           value: 1_210_000,
-          source: { mode: "calculated", manualValue: "1210000" },
+          mode: "formula",
+          manualValue: "1210000",
         },
       },
       { wire },
@@ -209,7 +215,9 @@ describe("encodeDirty", () => {
       columns: {},
       data: {
         appraisedValue: {
-          source: { mode: "calculated", manualValue: "1210000" },
+          kind: "estimate",
+          mode: "formula",
+          manualValue: "1210000",
         },
       },
     });
@@ -217,8 +225,10 @@ describe("encodeDirty", () => {
 
   test("should persist the value half of a manual-pinned estimate", () => {
     const envelope = {
+      kind: "estimate",
       value: 1_500,
-      source: { mode: "manual", manualValue: 1_500 },
+      mode: "estimate",
+      manualValue: 1_500,
     };
     expect(
       encodeDirty(loanStageSchema, { appraisedValue: envelope }, { wire }),
@@ -248,7 +258,7 @@ describe("encodeDirty", () => {
   });
 
   test("should mirror an x-column envelope field's value half into columns", () => {
-    const envelope = { value: 750, source: { mode: "manual", manualValue: 750 } };
+    const envelope = { kind: "estimate", value: 750, mode: "estimate", manualValue: 750  };
     expect(
       encodeDirty(columnEstimateSchema, { appraisedValue: envelope }, { wire }),
     ).toStrictEqual({
@@ -261,17 +271,17 @@ describe("encodeDirty", () => {
     expect(
       encodeDirty(
         columnEstimateSchema,
-        { appraisedValue: { value: 750, source: { mode: "calculated" } } },
+        { appraisedValue: { kind: "estimate", value: 750, mode: "formula"  } },
         { wire },
       ),
     ).toStrictEqual({
       columns: {},
-      data: { appraisedValue: { source: { mode: "calculated" } } },
+      data: { appraisedValue: { kind: "estimate", mode: "formula"  } },
     });
   });
 
   test("should not mirror an envelope value into a column that does not exist", () => {
-    const envelope = { value: 750, source: { mode: "manual" } };
+    const envelope = { kind: "estimate", value: 750, mode: "estimate"  };
     expect(
       encodeDirty(
         columnEstimateSchema,
@@ -383,8 +393,10 @@ describe("round-trip", () => {
       data: {
         purchasePrice: 1_000_000,
         appraisedValue: {
+          kind: "estimate",
           value: 1_210_000,
-          source: { mode: "manual", manualValue: 1_210_000 },
+          mode: "estimate",
+          manualValue: 1_210_000,
         },
       },
     };
@@ -398,16 +410,20 @@ describe("round-trip", () => {
     const dirty = getDirtyInput(store) as Record<string, unknown>;
     expect(dirty).toStrictEqual({
       appraisedValue: {
+        kind: "estimate",
         value: 1_300_000,
-        source: { mode: "manual", manualValue: 1_300_000 },
+        mode: "estimate",
+        manualValue: 1_300_000,
       },
     });
     expect(encodeDirty(loanStageSchema, dirty, { wire })).toStrictEqual({
       columns: {},
       data: {
         appraisedValue: {
+          kind: "estimate",
           value: 1_300_000,
-          source: { mode: "manual", manualValue: 1_300_000 },
+          mode: "estimate",
+          manualValue: 1_300_000,
         },
       },
     });

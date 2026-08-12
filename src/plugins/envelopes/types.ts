@@ -2,36 +2,32 @@ import type { ReadonlySignal, Signal } from "../../core/signal";
 import type { DerivationMode } from "../../core/types";
 
 /**
- * The persisted meta half of an estimate field's envelope
- * (`{ value, source }`). `mode` uses the LEGACY inner names on the wire:
- * `manual` is the estimate mode, `calculated` the formula mode.
- * `manualValue` preserves the typed estimate across a mode flip;
- * `lastFlippedAt` is stamped only when the mode actually changes. The
- * server recompute writes a PARTIAL meta (`{ mode: "calculated" }` only) —
- * every reader tolerates that.
+ * The persisted meta half of an estimate field. Wire `mode` uses the
+ * settled names (`estimate` / `formula`). `manualValue` preserves the
+ * typed estimate across a mode flip; `lastFlippedAt` is stamped only when
+ * the mode actually changes. Server recompute may write a PARTIAL meta
+ * (`{ mode: "formula" }` only) — every reader tolerates that.
  */
 export interface SourceMeta {
-  mode?: "manual" | "calculated";
+  mode?: DerivationMode;
   manualValue?: unknown;
   lastFlippedAt?: string;
 }
 
 /**
- * The persisted meta half of an amount-or-percent field's envelope
- * (`{ value, entry }`). Legacy inner names: `bps` is the percent entry
- * mode, `fixed_amount` the amount mode; `denominator` is the percent basis
- * (a loan field key). The meta holds ONLY entry state — the value half is
- * always the resolved dollar amount.
+ * The persisted meta half of an amount-or-percent field. Wire `mode` is
+ * `amount` | `percent`; `basis` is the percent-of field key. The meta
+ * holds ONLY entry state — the value half is always the resolved dollar
+ * amount.
  */
 export interface EntryMeta {
-  mode?: "bps" | "fixed_amount";
-  denominator?: string;
+  mode?: EntryMode;
+  basis?: string;
 }
 
 /**
- * The entry mode of an amount-or-percent field (settled naming; translates
- * to the wire's `fixed_amount`/`bps`): enter a dollar `amount`, or a
- * `percent` of the percent basis.
+ * The entry mode of an amount-or-percent field: enter a dollar `amount`,
+ * or a `percent` of the percent basis.
  */
 export type EntryMode = "amount" | "percent";
 

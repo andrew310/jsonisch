@@ -5,12 +5,11 @@ export type { EnvelopeState } from "./envelopes/plugin";
 export { envelopesKey } from "./envelopes/key";
 export {
   envelopesWire,
-  ENTRY_ENVELOPE_KEY,
   isEnvelope,
-  SOURCE_ENVELOPE_KEY,
-  wrapEntry,
-  wrapSource,
+  wrapEstimate,
+  wrapHybrid,
 } from "./envelopes/wire";
+export type { EnvelopeKind } from "./envelopes/wire";
 export type {
   EnvelopeSlot,
   EntryMeta,

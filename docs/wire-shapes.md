@@ -1,29 +1,35 @@
 # Wire shapes
 
-Since LOS-573/LOS-603, estimate and amount-or-percent fields persist a **nested
-envelope on their own key** — there are no `<key>Source`/`<key>Hybrid` sibling
-keys anywhere on the wire:
+Estimate and amount-or-percent fields persist a **kind-discriminated
+envelope on their own key** — there are no `<key>Source`/`<key>Hybrid`
+sibling keys anywhere on the wire:
 
 ```jsonc
 // estimate (control "estimate", x-field-type "computed")
 "totalProjectBudget": {
+  "kind": "estimate",
   "value": 60000,
-  "source": { "mode": "manual", "manualValue": 60000, "lastFlippedAt": "…" }
+  "mode": "estimate",
+  "manualValue": 60000,
+  "lastFlippedAt": "…"
 }
 // formula-owned: NO value key — the server recompute authors it
-"totalProjectBudget": { "source": { "mode": "calculated" } }
+"totalProjectBudget": { "kind": "estimate", "mode": "formula" }
 
 // amount-or-percent (control "amount-or-percent", x-field-type "hybrid")
 "initialDisbursement": {
+  "kind": "amount-or-percent",
   "value": 12500,
-  "entry": { "mode": "bps", "denominator": "total_commitment" }
+  "mode": "percent",
+  "basis": "total_commitment"
 }
 ```
 
-Inner names stay legacy (`manual`/`calculated`, `bps`/`fixed_amount`). Every
-other field persists bare. The shape is owned by ONE static descriptor —
-`envelopesWire` in `src/plugins/envelopes/wire.ts` — imported identically by
-the client plugin and the server codec (spec D7), so the halves cannot drift.
+Wire `mode` uses settled names (`estimate`/`formula`, `amount`/`percent`).
+Every other field persists bare. The shape is owned by ONE static
+descriptor — `envelopesWire` in `src/plugins/envelopes/wire.ts` — imported
+identically by the client plugin and the server codec (spec D7), so the
+halves cannot drift.
 
 ## Encode: `encodeDirty(schema, dirty, { knownColumns, wire })`
 
@@ -34,7 +40,7 @@ flowchart TD
   K -- declared --> SKIP{"wire.skipValue?"}
   SKIP -- "formula (derivationWire)" --> DROP2["dropped — recompute is the author"]
   SKIP -- no --> ENV{"envelope control?"}
-  ENV -- yes --> NORM["envelopesWire.encode:<br/>estimate not pinned manual → strip value half;<br/>bare estimate value → dropped (LOS-461)"]
+  ENV -- yes --> NORM["envelopesWire.encode:<br/>estimate not pinned estimate → strip value half;<br/>bare estimate value → dropped (LOS-461)"]
   NORM --> BAG["data (envelope WHOLE)"]
   NORM -- "x-column: true" --> MIRROR["columns (scalar value-half mirror)"]
   ENV -- no --> COL{"x-column === true?"}
@@ -53,7 +59,7 @@ Key rules:
   the bag.
 - The LOS-461 policy is unchanged, relocated: a formula value is always
   server-recomputed; an estimate value persists exactly when its meta pins
-  `mode: "manual"`.
+  `mode: "estimate"`.
 
 ## Decode
 
