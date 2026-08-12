@@ -37,6 +37,7 @@ export { getFieldBool } from "./field/get-field-bool";
 export { getFieldInput } from "./field/get-field-input";
 export { getFieldStore, getFieldStoreChain } from "./field/get-field-store";
 export { initializeFieldStore } from "./field/initialize-field-store";
+export { parkItemState } from "./field/park-item-state";
 export { resetItemState } from "./field/reset-item-state";
 export { setFieldBool } from "./field/set-field-bool";
 export {

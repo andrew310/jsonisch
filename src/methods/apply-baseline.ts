@@ -29,9 +29,10 @@ export interface ApplyBaselineConfig {
  * value becomes clean), and a later `reset()` returns to the NEW baseline.
  * Array membership follows the same rule: unchanged membership adopts the
  * server rows — by `id` when the item schema has usable ids, otherwise
- * positionally — and surviving rows keep their identity; locally changed
- * membership wins, with rows still rebasing content by server `id` where
- * ids exist.
+ * positionally — and surviving rows keep their identity. Unmatched clean
+ * locals drop; unmatched dirty locals append after the server prefix
+ * (field-level dirty still enables Save). Locally changed membership wins,
+ * with rows still rebasing content by server `id` where ids exist.
  *
  * It is NOT conflict resolution — two people editing the same field stays
  * last-write-wins. A nullish record is a no-op (nothing to rebase on).

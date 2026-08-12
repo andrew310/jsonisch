@@ -262,6 +262,67 @@ describe("applyBaseline", () => {
       ]);
     });
 
+    test("should append a dirty local row the server dropped", () => {
+      const store = createTestStore(idRowsSchema, {
+        initialInput: {
+          rows: [
+            { id: "r1", label: "foo" },
+            { id: "r2", label: "bar" },
+          ],
+        },
+      });
+      const rows = getArrayStore(store, ["rows"]);
+      const openedIds = rows.items.value;
+      setInput(store, ["rows", 0, "label"], "foo-EDIT");
+
+      applyBaseline(store, {
+        data: { rows: [{ id: "r2", label: "bar" }] },
+      });
+
+      // Opened: 1 r1·foo, 2 r2·bar. Edit r1 → foo-EDIT. Server dropped r1.
+      // Want / get:
+      // 1. id r2 · bar
+      // 2. id r1 · foo-EDIT  (appended; still dirty)
+      expect(getInput(store, ["rows"])).toStrictEqual([
+        { id: "r2", label: "bar" },
+        { id: "r1", label: "foo-EDIT" },
+      ]);
+      expect(getValueStore(store, ["rows", 0, "label"]).input.value).toBe("bar");
+      expect(getValueStore(store, ["rows", 0, "label"]).isDirty.value).toBe(
+        false,
+      );
+      const kept = getValueStore(store, ["rows", 1, "label"]);
+      expect(kept.input.value).toBe("foo-EDIT");
+      expect(kept.startInput.value).toBe("foo");
+      expect(kept.isDirty.value).toBe(true);
+      expect(rows.items.value[0]).toBe(openedIds[1]);
+      expect(rows.items.value[1]).toBe(openedIds[0]);
+      expect(rows.startItems.value).toStrictEqual(rows.items.value);
+      expect(rows.isDirty.value).toBe(false);
+      expect(store.aggregates.isDirty.value).toBe(true);
+    });
+
+    test("should drop a clean local row the server dropped", () => {
+      const store = createTestStore(idRowsSchema, {
+        initialInput: {
+          rows: [
+            { id: "r1", label: "foo" },
+            { id: "r2", label: "bar" },
+          ],
+        },
+      });
+
+      applyBaseline(store, {
+        data: { rows: [{ id: "r2", label: "bar" }] },
+      });
+
+      expect(getInput(store, ["rows"])).toStrictEqual([
+        { id: "r2", label: "bar" },
+      ]);
+      expect(getArrayStore(store, ["rows"]).isDirty.value).toBe(false);
+      expect(store.aggregates.isDirty.value).toBe(false);
+    });
+
     test("should rebase row content by server id inside changed membership", () => {
       const store = createTestStore(idRowsSchema, {
         initialInput: {

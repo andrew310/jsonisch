@@ -971,7 +971,7 @@ describe("meta channel", () => {
       expect(sourceSlotAt(store, ["rows", 0, "fee"]).mode.value).toBe("formula");
     });
 
-    test("a stale child past an array shrink must not phantom-dirty the form", () => {
+    test("a plugin-dirty unmatched row is kept after the server prefix", () => {
       const store = createTestStore(rowSchema(), {
         initialInput: {
           a: 1,
@@ -982,9 +982,7 @@ describe("meta channel", () => {
         },
         engine: makeEngine(doubleA()),
       });
-      // Flip the LAST row, then let the server hand back a shorter array:
-      // membership was clean locally, so the shrink is adopted and the
-      // flipped slot survives only on a store past the live end
+      // Flip r2, then the server drops it — leftover dirty rows append
       setMode(store, ["rows", 1, "fee"], "formula", { now: "T1" });
       applyBaseline(store, {
         data: {
@@ -993,8 +991,18 @@ describe("meta channel", () => {
         },
       });
 
-      expect(store.aggregates.isDirty.value).toBe(false);
-      expect(getDirtyInput(store)).toBe(undefined);
+      expect(getInput(store, ["rows"])).toStrictEqual([
+        { id: "r1", a: 10, fee: 1 },
+        { id: "r2", a: 20, fee: 2 },
+      ]);
+      expect(sourceSlotAt(store, ["rows", 0, "fee"]).mode.value).toBe(
+        "estimate",
+      );
+      const kept = sourceSlotAt(store, ["rows", 1, "fee"]);
+      expect(kept.mode.value).toBe("formula");
+      expect(kept.isDirty.value).toBe(true);
+      expect(store.aggregates.isDirty.value).toBe(true);
+      expect(getDirtyInput(store)).not.toBe(undefined);
     });
 
     test("a moved row should take its mode with it", () => {

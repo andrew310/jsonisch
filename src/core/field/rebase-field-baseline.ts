@@ -1,6 +1,10 @@
 import { isPresenceEqual, isSemanticEqual } from "../dirty";
 import { createId } from "../framework";
-import { dispatchRebase, unwrapLeafInput } from "../plugin/driver";
+import {
+  dispatchRebase,
+  hasPluginDirtyField,
+  unwrapLeafInput,
+} from "../plugin/driver";
 import { containerPresence, readOwn, resolveValueInput } from "../schema-utils";
 import type {
   InternalArrayStore,
@@ -10,7 +14,9 @@ import type {
 } from "../types";
 import { alignRows } from "./align-rows";
 import { copyItemState } from "./copy-item-state";
+import { getFieldBool } from "./get-field-bool";
 import { initializeFieldStore } from "./initialize-field-store";
+import { parkItemState } from "./park-item-state";
 import { resetItemState } from "./reset-item-state";
 import { computeContainerDirty } from "./set-field-input";
 
@@ -102,9 +108,11 @@ export function rebaseFieldBaseline(
  * clean-vs-dirty rule as values: unchanged membership adopts the server
  * rows — by `id` when the item schema has usable ids, otherwise
  * positionally — KEEPING surviving item IDs so mounted rows preserve their
- * identity (react keys). Locally changed membership (insert, remove,
- * reorder, presence flip) wins wholesale — the array stays dirty and only
- * rows matchable by a server `id` still rebase their content.
+ * identity (react keys). Unmatched clean locals drop; unmatched dirty
+ * locals append after the server prefix. Locally changed membership
+ * (insert, remove, reorder, presence flip) wins wholesale — the array
+ * stays dirty and only rows matchable by a server `id` still rebase their
+ * content.
  */
 function rebaseArrayBaseline(
   internalFormStore: InternalFormStore,
@@ -226,8 +234,9 @@ function rebaseCleanMembershipPositional(
 /**
  * Clean membership with usable ids: grow/shrink to the server list, move
  * live row state onto the aligned indices, then rebase each child onto
- * that server row. Stores are position-fixed (`path` stays on the store)
- * — never `children[i] = oldChildren[j]`.
+ * that server row. Unmatched dirty locals append after that prefix;
+ * unmatched clean locals drop. Stores are position-fixed (`path` stays on
+ * the store) — never `children[i] = oldChildren[j]`.
  */
 function rebaseCleanMembershipById(
   internalFormStore: InternalFormStore,
@@ -240,12 +249,31 @@ function rebaseCleanMembershipById(
     serverRows,
   );
 
+  const usedLocal = new Set<number>();
+  for (const { fromLocalIndex } of alignment) {
+    if (fromLocalIndex != null) usedLocal.add(fromLocalIndex);
+  }
+
+  const leftoverDirty: number[] = [];
+  for (let index = 0; index < items.length; index++) {
+    if (usedLocal.has(index)) continue;
+    const child = internalArrayStore.children[index];
+    if (
+      child &&
+      (getFieldBool(child, "isDirty") ||
+        hasPluginDirtyField(internalFormStore, child))
+    ) {
+      leftoverDirty.push(index);
+    }
+  }
+
   // Park every source before any dest write. A later dest can occupy a
   // source index (prepend, swap, shrink) and copyItemState would otherwise
-  // clobber state still needed elsewhere.
+  // clobber state still needed elsewhere. Unused dirties are parked too —
+  // they may share an index the server-aligned write overwrites.
   const parked = new Map<number, InternalFieldStore>();
-  for (const { fromLocalIndex } of alignment) {
-    if (fromLocalIndex == null || parked.has(fromLocalIndex)) continue;
+  for (const fromLocalIndex of [...usedLocal, ...leftoverDirty]) {
+    if (parked.has(fromLocalIndex)) continue;
     parked.set(
       fromLocalIndex,
       parkItemState(
@@ -285,9 +313,27 @@ function rebaseCleanMembershipById(
     );
   }
 
-  const newItems = alignment.map(({ fromLocalIndex }) =>
-    fromLocalIndex != null ? items[fromLocalIndex] : createId(),
-  );
+  // Unmatched clean rows drop. Unmatched dirty rows append after the
+  // server prefix; membership itself is not an edit.
+  const leftoverIds: string[] = [];
+  for (let n = 0; n < leftoverDirty.length; n++) {
+    const fromLocalIndex = leftoverDirty[n];
+    const dest = serverRows.length + n;
+    ensureItemStore(internalFormStore, internalArrayStore, dest, undefined);
+    copyItemState(
+      internalFormStore,
+      parked.get(fromLocalIndex)!,
+      internalArrayStore.children[dest],
+    );
+    leftoverIds.push(items[fromLocalIndex]);
+  }
+
+  const newItems = [
+    ...alignment.map(({ fromLocalIndex }) =>
+      fromLocalIndex != null ? items[fromLocalIndex] : createId(),
+    ),
+    ...leftoverIds,
+  ];
   internalArrayStore.items.value = newItems;
   internalArrayStore.startItems.value = newItems;
 }
@@ -300,29 +346,6 @@ function readItemId(store: InternalFieldStore | undefined): unknown {
   if (store?.kind !== "object") return undefined;
   const idStore = store.children.id;
   return idStore?.kind === "value" ? idStore.input.value : undefined;
-}
-
-/**
- * A detached copy of one row's live state. The park store is walked at an
- * array-item path so plugin slots exist — transfer into a store without
- * them drops the row's envelope state.
- */
-function parkItemState(
-  internalFormStore: InternalFormStore,
-  internalArrayStore: InternalArrayStore,
-  source: InternalFieldStore,
-  sourceIndex: number,
-): InternalFieldStore {
-  const parked = {} as InternalFieldStore;
-  initializeFieldStore(
-    internalFormStore,
-    parked,
-    internalArrayStore.itemSchema,
-    undefined,
-    [...internalArrayStore.path, sourceIndex],
-  );
-  copyItemState(internalFormStore, source, parked);
-  return parked;
 }
 
 /**

@@ -1,6 +1,7 @@
 import { copyItemState } from "../core/field/copy-item-state";
 import { getFieldStoreChain } from "../core/field/get-field-store";
 import { initializeFieldStore } from "../core/field/initialize-field-store";
+import { parkItemState } from "../core/field/park-item-state";
 import { resetItemState } from "../core/field/reset-item-state";
 import { computeContainerDirty } from "../core/field/set-field-input";
 import { swapItemState } from "../core/field/swap-item-state";
@@ -207,22 +208,11 @@ export function move(
       newItems.splice(to, 0, newItems.splice(from, 1)[0]);
       internalArrayStore.items.value = newItems;
 
-      // Park the moving item's state in a temporary store. It is given the
-      // moving item's own path so the walk shapes it as an ARRAY ITEM — a
-      // parking store without the item's meta channel would silently drop
-      // the row's estimate/entry state on the way through.
-      const tempStore = {} as InternalFieldStore;
-      initializeFieldStore(
+      const tempStore = parkItemState(
         internalFormStore,
-        tempStore,
-        internalArrayStore.itemSchema,
-        undefined,
-        [...internalArrayStore.path, from],
-      );
-      copyItemState(
-        internalFormStore,
+        internalArrayStore,
         internalArrayStore.children[from],
-        tempStore,
+        from,
       );
 
       // Shift the state of the children between the two indices
