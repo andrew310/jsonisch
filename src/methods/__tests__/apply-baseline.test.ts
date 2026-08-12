@@ -188,6 +188,80 @@ describe("applyBaseline", () => {
       expect(getArrayStore(store, ["rows"]).isDirty.value).toBe(true);
     });
 
+    test("should keep a dirty field on its row id when the server prepends a row", () => {
+      const store = createTestStore(idRowsSchema, {
+        initialInput: {
+          rows: [
+            { id: "r1", label: "foo" },
+            { id: "r2", label: "bar" },
+          ],
+        },
+      });
+      const rows = getArrayStore(store, ["rows"]);
+      const openedIds = rows.items.value;
+      setInput(store, ["rows", 0, "label"], "foo-EDIT");
+
+      applyBaseline(store, {
+        data: {
+          rows: [
+            { label: "baz" },
+            { id: "r1", label: "foo-foo" },
+            { id: "r2", label: "bar" },
+          ],
+        },
+      });
+
+      expect(getInput(store, ["rows"])).toStrictEqual([
+        { id: "", label: "baz" },
+        { id: "r1", label: "foo-EDIT" },
+        { id: "r2", label: "bar" },
+      ]);
+      const edited = getValueStore(store, ["rows", 1, "label"]);
+      expect(edited.input.value).toBe("foo-EDIT");
+      expect(edited.startInput.value).toBe("foo-foo");
+      expect(edited.isDirty.value).toBe(true);
+      expect(getValueStore(store, ["rows", 0, "label"]).input.value).toBe("baz");
+      expect(getValueStore(store, ["rows", 0, "label"]).isDirty.value).toBe(
+        false,
+      );
+      expect(rows.items.value).toHaveLength(3);
+      expect(rows.items.value[1]).toBe(openedIds[0]);
+      expect(rows.items.value[2]).toBe(openedIds[1]);
+      expect(rows.startItems.value).toStrictEqual(rows.items.value);
+      expect(rows.isDirty.value).toBe(false);
+    });
+
+    test("should keep a dirty field on its row id when the server only changes that row", () => {
+      const store = createTestStore(idRowsSchema, {
+        initialInput: {
+          rows: [
+            { id: "r1", label: "foo" },
+            { id: "r2", label: "bar" },
+          ],
+        },
+      });
+      setInput(store, ["rows", 0, "label"], "foo-EDIT");
+
+      applyBaseline(store, {
+        data: {
+          rows: [
+            { id: "r1", label: "foo-foo" },
+            { id: "r2", label: "bar" },
+          ],
+        },
+      });
+
+      const first = getValueStore(store, ["rows", 0, "label"]);
+      expect(first.input.value).toBe("foo-EDIT");
+      expect(first.startInput.value).toBe("foo-foo");
+      expect(first.isDirty.value).toBe(true);
+      expect(getValueStore(store, ["rows", 1, "label"]).input.value).toBe("bar");
+      expect(getInput(store, ["rows"])).toStrictEqual([
+        { id: "r1", label: "foo-EDIT" },
+        { id: "r2", label: "bar" },
+      ]);
+    });
+
     test("should rebase row content by server id inside changed membership", () => {
       const store = createTestStore(idRowsSchema, {
         initialInput: {

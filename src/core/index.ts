@@ -25,6 +25,8 @@ export type { PluginDriver } from "./plugin/driver";
 export { inferControl } from "./control";
 export type { ControlKind } from "./control";
 export { isEmptyish, isPresenceEqual, isSemanticEqual } from "./dirty";
+export { alignRows } from "./field/align-rows";
+export type { Align } from "./field/align-rows";
 export { copyItemState } from "./field/copy-item-state";
 export { focusFieldElement } from "./field/focus-field-element";
 export {

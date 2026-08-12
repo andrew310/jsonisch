@@ -8,6 +8,8 @@ import type {
   InternalFormStore,
   JsonSchema,
 } from "../types";
+import { alignRows } from "./align-rows";
+import { copyItemState } from "./copy-item-state";
 import { initializeFieldStore } from "./initialize-field-store";
 import { resetItemState } from "./reset-item-state";
 import { computeContainerDirty } from "./set-field-input";
@@ -98,8 +100,9 @@ export function rebaseFieldBaseline(
 /**
  * The array half of the rebase. Membership (item identity) follows the same
  * clean-vs-dirty rule as values: unchanged membership adopts the server
- * rows positionally, KEEPING surviving item IDs so mounted rows preserve
- * their identity (react keys); locally changed membership (insert, remove,
+ * rows — by `id` when the item schema has usable ids, otherwise
+ * positionally — KEEPING surviving item IDs so mounted rows preserve their
+ * identity (react keys). Locally changed membership (insert, remove,
  * reorder, presence flip) wins wholesale — the array stays dirty and only
  * rows matchable by a server `id` still rebase their content.
  */
@@ -126,63 +129,38 @@ function rebaseArrayBaseline(
     presenceClean &&
     internalArrayStore.startItems.value.join() === items.join();
 
-  if (membershipClean) {
-    // Grown rows are fresh baseline rows: reuse a stale child store (cleared
-    // deeply) or initialize a new one — either way they start clean
-    for (let index = items.length; index < serverRows.length; index++) {
-      if (internalArrayStore.children[index]) {
-        resetItemState(
-          internalFormStore,
-          internalArrayStore.children[index],
-          serverRows[index],
-        );
-      } else {
-        internalArrayStore.children[index] = {} as InternalFieldStore;
-        initializeFieldStore(
-          internalFormStore,
-          internalArrayStore.children[index],
-          internalArrayStore.itemSchema,
-          serverRows[index],
-          [...internalArrayStore.path, index],
-        );
-      }
-    }
+  const serverRowsById = indexServerRowsById(
+    internalArrayStore.itemSchema,
+    serverRows,
+  );
 
-    const shared = Math.min(items.length, serverRows.length);
-    for (let index = 0; index < shared; index++) {
-      rebaseFieldBaseline(
-        internalFormStore,
-        internalArrayStore.children[index],
-        serverRows[index],
-      );
-    }
-
-    const newItems = [
-      ...items.slice(0, serverRows.length),
-      ...Array.from(
-        { length: Math.max(0, serverRows.length - items.length) },
-        () => createId(),
-      ),
-    ];
-    internalArrayStore.items.value = newItems;
-    internalArrayStore.startItems.value = newItems;
-  } else {
-    const serverRowsById = indexServerRowsById(
-      internalArrayStore.itemSchema,
+  if (membershipClean && serverRowsById) {
+    rebaseCleanMembershipById(
+      internalFormStore,
+      internalArrayStore,
+      items,
       serverRows,
     );
-    if (serverRowsById) {
-      for (let index = 0; index < items.length; index++) {
-        const child = internalArrayStore.children[index];
-        if (child?.kind !== "object") continue;
-        const idStore = child.children.id;
-        const id = idStore?.kind === "value" ? idStore.input.value : undefined;
-        const matched =
-          id != null && id !== "" ? serverRowsById.get(id) : undefined;
-        if (matched !== undefined) {
-          rebaseFieldBaseline(internalFormStore, child, matched);
-        }
-      }
+  } else if (membershipClean) {
+    rebaseCleanMembershipPositional(
+      internalFormStore,
+      internalArrayStore,
+      items,
+      serverRows,
+    );
+  } else if (serverRowsById) {
+    const alignment = alignRows(
+      items.map((_, index) => readItemId(internalArrayStore.children[index])),
+      serverRows,
+    );
+    for (let index = 0; index < alignment.length; index++) {
+      const fromLocalIndex = alignment[index].fromLocalIndex;
+      if (fromLocalIndex == null) continue;
+      rebaseFieldBaseline(
+        internalFormStore,
+        internalArrayStore.children[fromLocalIndex],
+        serverRows[index],
+      );
     }
   }
 
@@ -196,10 +174,182 @@ function rebaseArrayBaseline(
 }
 
 /**
+ * Clean membership, no usable ids: adopt server rows by index. Grown
+ * slots are fresh baseline rows; surviving item IDs stay on their index.
+ */
+function rebaseCleanMembershipPositional(
+  internalFormStore: InternalFormStore,
+  internalArrayStore: InternalArrayStore,
+  items: readonly string[],
+  serverRows: unknown[],
+): void {
+  for (let index = items.length; index < serverRows.length; index++) {
+    if (internalArrayStore.children[index]) {
+      resetItemState(
+        internalFormStore,
+        internalArrayStore.children[index],
+        serverRows[index],
+      );
+    } else {
+      internalArrayStore.children[index] = {} as InternalFieldStore;
+      initializeFieldStore(
+        internalFormStore,
+        internalArrayStore.children[index],
+        internalArrayStore.itemSchema,
+        serverRows[index],
+        [...internalArrayStore.path, index],
+      );
+    }
+  }
+
+  const shared = Math.min(items.length, serverRows.length);
+  for (let index = 0; index < shared; index++) {
+    rebaseFieldBaseline(
+      internalFormStore,
+      internalArrayStore.children[index],
+      serverRows[index],
+    );
+  }
+
+  const newItems = [
+    ...items.slice(0, serverRows.length),
+    ...Array.from(
+      { length: Math.max(0, serverRows.length - items.length) },
+      () => createId(),
+    ),
+  ];
+  internalArrayStore.items.value = newItems;
+  internalArrayStore.startItems.value = newItems;
+}
+
+/**
+ * Clean membership with usable ids: grow/shrink to the server list, move
+ * live row state onto the aligned indices, then rebase each child onto
+ * that server row. Stores are position-fixed (`path` stays on the store)
+ * — never `children[i] = oldChildren[j]`.
+ */
+function rebaseCleanMembershipById(
+  internalFormStore: InternalFormStore,
+  internalArrayStore: InternalArrayStore,
+  items: readonly string[],
+  serverRows: unknown[],
+): void {
+  const alignment = alignRows(
+    items.map((_, index) => readItemId(internalArrayStore.children[index])),
+    serverRows,
+  );
+
+  // Park every source before any dest write. A later dest can occupy a
+  // source index (prepend, swap, shrink) and copyItemState would otherwise
+  // clobber state still needed elsewhere.
+  const parked = new Map<number, InternalFieldStore>();
+  for (const { fromLocalIndex } of alignment) {
+    if (fromLocalIndex == null || parked.has(fromLocalIndex)) continue;
+    parked.set(
+      fromLocalIndex,
+      parkItemState(
+        internalFormStore,
+        internalArrayStore,
+        internalArrayStore.children[fromLocalIndex],
+        fromLocalIndex,
+      ),
+    );
+  }
+
+  for (let index = 0; index < serverRows.length; index++) {
+    ensureItemStore(
+      internalFormStore,
+      internalArrayStore,
+      index,
+      serverRows[index],
+    );
+    const fromLocalIndex = alignment[index].fromLocalIndex;
+    if (fromLocalIndex == null) {
+      resetItemState(
+        internalFormStore,
+        internalArrayStore.children[index],
+        serverRows[index],
+      );
+    } else {
+      copyItemState(
+        internalFormStore,
+        parked.get(fromLocalIndex)!,
+        internalArrayStore.children[index],
+      );
+    }
+    rebaseFieldBaseline(
+      internalFormStore,
+      internalArrayStore.children[index],
+      serverRows[index],
+    );
+  }
+
+  const newItems = alignment.map(({ fromLocalIndex }) =>
+    fromLocalIndex != null ? items[fromLocalIndex] : createId(),
+  );
+  internalArrayStore.items.value = newItems;
+  internalArrayStore.startItems.value = newItems;
+}
+
+/**
+ * Reads the live `id` of an object row, or `undefined` when the store has
+ * no value-leaf `id` child.
+ */
+function readItemId(store: InternalFieldStore | undefined): unknown {
+  if (store?.kind !== "object") return undefined;
+  const idStore = store.children.id;
+  return idStore?.kind === "value" ? idStore.input.value : undefined;
+}
+
+/**
+ * A detached copy of one row's live state. The park store is walked at an
+ * array-item path so plugin slots exist — transfer into a store without
+ * them drops the row's envelope state.
+ */
+function parkItemState(
+  internalFormStore: InternalFormStore,
+  internalArrayStore: InternalArrayStore,
+  source: InternalFieldStore,
+  sourceIndex: number,
+): InternalFieldStore {
+  const parked = {} as InternalFieldStore;
+  initializeFieldStore(
+    internalFormStore,
+    parked,
+    internalArrayStore.itemSchema,
+    undefined,
+    [...internalArrayStore.path, sourceIndex],
+  );
+  copyItemState(internalFormStore, source, parked);
+  return parked;
+}
+
+/**
+ * Ensures a child store exists at `index` so a dest write has a home.
+ * Existing stores are left as-is (live state is transferred or reset next).
+ */
+function ensureItemStore(
+  internalFormStore: InternalFormStore,
+  internalArrayStore: InternalArrayStore,
+  index: number,
+  input: unknown,
+): void {
+  if (internalArrayStore.children[index]) return;
+  internalArrayStore.children[index] = {} as InternalFieldStore;
+  initializeFieldStore(
+    internalFormStore,
+    internalArrayStore.children[index],
+    internalArrayStore.itemSchema,
+    input,
+    [...internalArrayStore.path, index],
+  );
+}
+
+/**
  * Indexes server rows by their `id` value when the item schema declares an
- * `id` property — the identity used to rebase row content inside a
- * locally-changed membership. Returns `undefined` when rows have no usable
- * identity (no declared `id`, or no row carries one).
+ * `id` property. Returns `undefined` when rows have no usable identity
+ * (no declared `id`, or no row carries one) — clean membership stays
+ * positional; dirty membership skips the id join.
  */
 function indexServerRowsById(
   itemSchema: JsonSchema,

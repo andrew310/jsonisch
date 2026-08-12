@@ -28,7 +28,8 @@ export interface ApplyBaselineConfig {
  * re-diffed against the new baseline (an edit equal to the fresh server
  * value becomes clean), and a later `reset()` returns to the NEW baseline.
  * Array membership follows the same rule: unchanged membership adopts the
- * server rows (surviving rows keep their identity); locally changed
+ * server rows — by `id` when the item schema has usable ids, otherwise
+ * positionally — and surviving rows keep their identity; locally changed
  * membership wins, with rows still rebasing content by server `id` where
  * ids exist.
  *
