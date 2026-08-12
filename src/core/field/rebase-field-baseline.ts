@@ -149,17 +149,18 @@ function rebaseArrayBaseline(
       serverRows,
     );
   } else if (serverRowsById) {
-    const alignment = alignRows(
-      items.map((_, index) => readItemId(internalArrayStore.children[index])),
-      serverRows,
-    );
-    for (let index = 0; index < alignment.length; index++) {
-      const fromLocalIndex = alignment[index].fromLocalIndex;
-      if (fromLocalIndex == null) continue;
+    // Iterate LOCAL rows, not an `alignRows` join: its at-most-once rule is
+    // about row identity (clean path) — here duplicate local ids must each
+    // re-diff against the same server row or later duplicates go stale.
+    for (let index = 0; index < items.length; index++) {
+      const serverRow = serverRowsById.get(
+        readItemId(internalArrayStore.children[index]),
+      );
+      if (serverRow === undefined) continue;
       rebaseFieldBaseline(
         internalFormStore,
-        internalArrayStore.children[fromLocalIndex],
-        serverRows[index],
+        internalArrayStore.children[index],
+        serverRow,
       );
     }
   }

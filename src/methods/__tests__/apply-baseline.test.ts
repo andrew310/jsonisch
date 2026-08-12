@@ -291,6 +291,30 @@ describe("applyBaseline", () => {
       );
       expect(getArrayStore(store, ["rows"]).isDirty.value).toBe(true);
     });
+
+    test("should rebase every local row sharing a server id inside changed membership", () => {
+      const store = createTestStore(idRowsSchema, {
+        initialInput: {
+          rows: [
+            { id: "r1", label: "a" },
+            { id: "r1", label: "a-copy" },
+          ],
+        },
+      });
+      insert(store, ["rows"], { initialInput: { id: "", label: "added" } });
+
+      applyBaseline(store, {
+        data: { rows: [{ id: "r1", label: "a2" }] },
+      });
+
+      // Local rows can share an id (a duplicated row before save). Each one
+      // matches the server row independently — none may keep stale content.
+      expect(getValueStore(store, ["rows", 0, "label"]).input.value).toBe("a2");
+      expect(getValueStore(store, ["rows", 1, "label"]).input.value).toBe("a2");
+      expect(getValueStore(store, ["rows", 2, "label"]).input.value).toBe(
+        "added",
+      );
+    });
   });
 
   describe("meta channel (the envelopes plugin's envelope half)", () => {
