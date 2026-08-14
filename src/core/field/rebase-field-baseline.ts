@@ -76,12 +76,15 @@ export function rebaseFieldBaseline(
       internalFieldStore,
     );
   } else {
-    // Envelope-control leaves adopt through the plugin (`adoptEnvelope`
-    // then `writeEnvelope` once). Writing the number here would fork it
-    // from the live envelope and last-write-wins the whole object.
-    if (internalFormStore.pluginDriver.envelopes.has(internalFieldStore.control)) {
-      return;
-    }
+    // Envelope-control leaves rebase their VALUE half here like any leaf
+    // (`unwrapLeafInput` splits the raw envelope). For a slotted leaf the
+    // scope's plugin rebase runs AFTER this walk — root dispatch in
+    // `applyBaseline`, row dispatch in the object branch above — and its
+    // `adoptEnvelope` + `writeEnvelope` re-derive input/startInput/isDirty
+    // per channel, so the plugin write is authoritative; this ordering is
+    // load-bearing. A slotless envelope leaf (nested under a plain object
+    // — no scope is ever dispatched there) has ONLY this write: skipping
+    // by control kind froze its dirty baseline at mount (LOS-708).
     const newValue = resolveValueInput(
       internalFormStore.emptyInput,
       internalFieldStore.schema,

@@ -492,6 +492,91 @@ describe("applyBaseline", () => {
     });
   });
 
+  describe("envelope leaves nested under plain objects (LOS-708)", () => {
+    // A plain nested object is NOT a plugin scope (only the root and array
+    // rows dispatch `buildScope`), so this estimate leaf has no envelope
+    // slot: the plugin's scope rebase can never cover it, and core's value
+    // rebase must — an early-return keyed on the CONTROL instead of slot
+    // existence left it skipped by both halves, freezing its dirty
+    // baseline at mount.
+    const nestedSchema = objectSchema({
+      terms: objectSchema({
+        budget: { type: "number", "x-field-type": "computed" },
+      }),
+    });
+
+    test("should adopt the fresh server value on a clean nested estimate", () => {
+      const store = createTestStore(nestedSchema, {
+        initialInput: {
+          terms: {
+            budget: { kind: "estimate", value: 10, mode: "estimate", manualValue: 10 },
+          },
+        },
+      });
+
+      applyBaseline(store, {
+        data: {
+          terms: {
+            budget: { kind: "estimate", value: 42, mode: "estimate", manualValue: 42 },
+          },
+        },
+      });
+
+      const budget = getValueStore(store, ["terms", "budget"]);
+      expect(budget.input.value).toBe(42);
+      expect(budget.startInput.value).toBe(42);
+      expect(budget.isDirty.value).toBe(false);
+    });
+
+    test("should turn a nested estimate edit equal to the fresh value clean", () => {
+      const store = createTestStore(nestedSchema, {
+        initialInput: {
+          terms: {
+            budget: { kind: "estimate", value: 10, mode: "estimate", manualValue: 10 },
+          },
+        },
+      });
+      setInput(store, ["terms", "budget"], 42);
+      expect(getValueStore(store, ["terms", "budget"]).isDirty.value).toBe(true);
+
+      applyBaseline(store, {
+        data: {
+          terms: {
+            budget: { kind: "estimate", value: 42, mode: "estimate", manualValue: 42 },
+          },
+        },
+      });
+
+      const budget = getValueStore(store, ["terms", "budget"]);
+      expect(budget.input.value).toBe(42);
+      expect(budget.isDirty.value).toBe(false);
+    });
+
+    test("should keep a nested estimate edit dirty against a differing fresh value", () => {
+      const store = createTestStore(nestedSchema, {
+        initialInput: {
+          terms: {
+            budget: { kind: "estimate", value: 10, mode: "estimate", manualValue: 10 },
+          },
+        },
+      });
+      setInput(store, ["terms", "budget"], 99);
+
+      applyBaseline(store, {
+        data: {
+          terms: {
+            budget: { kind: "estimate", value: 42, mode: "estimate", manualValue: 42 },
+          },
+        },
+      });
+
+      const budget = getValueStore(store, ["terms", "budget"]);
+      expect(budget.input.value).toBe(99);
+      expect(budget.startInput.value).toBe(42);
+      expect(budget.isDirty.value).toBe(true);
+    });
+  });
+
   describe("reset interplay", () => {
     test("should reset to the NEW baseline after applyBaseline", () => {
       const store = createTestStore(flatSchema, {
