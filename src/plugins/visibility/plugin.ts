@@ -6,6 +6,7 @@ import type { InternalFormStore, InternalObjectStore } from "../../core/types";
 import type { VisibleWhen } from "../../core/types/visibility";
 import { resolveConditionals } from "../../core/visibility/resolve-conditionals";
 import { resolveScopeValue } from "../derivation/resolve-scope-value";
+import { resolveRowScopeValue } from "../derivation/row-scope";
 
 /**
  * The visibility plugin's key. It keeps no state (rules and computeds live
@@ -14,12 +15,16 @@ import { resolveScopeValue } from "../derivation/resolve-scope-value";
 export const visibilityKey = new PluginKey<null>("visibility");
 
 /**
- * The visibility plugin: every root-level field gated by an `allOf`
- * `if/then/else` block gets a `visible` computed signal over the watched
- * field's resolved value. Root-level only — the same boundary as before
- * (derivation reaches into rows, visibility does not yet; see the spec's
- * open question 3 — if a per-field state slot ever appears here, it picks
- * up a `FieldSlotKey` like the others).
+ * The visibility plugin: every field gated by an `allOf` `if/then/else`
+ * block on its OWN scope's schema gets a `visible` computed signal over the
+ * watched field's resolved value. Two scope kinds (LOS-722 extended
+ * visibility into rows — the spec's open question 3):
+ *
+ * - the root scope, whose rules come from the form schema's `allOf`;
+ * - an array-row scope, whose rules come from the ITEMS schema's `allOf`
+ *   (`buildNestedFieldItems` carries the related dataset's conditionals),
+ *   evaluated against THAT row's values — row A's trigger never gates
+ *   row B's field.
  *
  * Visibility gates RENDERING only: a hidden field keeps its state, stays
  * in the dirty diff, and rides the payload. Fields without a rule get no
@@ -39,15 +44,17 @@ export function visibility(): JsonischPlugin<null> {
 
     buildScope(ctx, scope) {
       const form = ctx.form;
-      if (scope !== (form as InternalObjectStore)) return;
+      const isRoot = scope === (form as InternalObjectStore);
 
-      const rules = resolveConditionals(form.schema);
+      const rules = resolveConditionals(scope.schema);
       for (const [key, visibleWhen] of Object.entries(rules)) {
-        const child = readOwn(form.children, key);
+        const child = readOwn(scope.children, key);
         if (!child || typeof child !== "object") continue;
-        const store = form.children[key]!;
+        const store = scope.children[key]!;
         store.visibleWhen = visibleWhen;
-        store.visible = computed(() => evaluateVisibleWhen(form, visibleWhen));
+        store.visible = isRoot
+          ? computed(() => evaluateVisibleWhen(form, visibleWhen))
+          : computed(() => evaluateRowVisibleWhen(form, scope, visibleWhen));
       }
     },
   };
@@ -64,6 +71,29 @@ function evaluateVisibleWhen(
   visibleWhen: VisibleWhen,
 ): boolean {
   const actual = resolveWhenRef(internalFormStore, visibleWhen.field);
+  return compareVisibleWhen(actual, visibleWhen);
+}
+
+/**
+ * Evaluates a ROW field's visibility rule in its row's scope: the watched
+ * value resolves through `resolveRowScopeValue` (live row sibling,
+ * derived-aware → canonical row from `offFormValues`), so toggling row A's
+ * trigger flips row A's gated field and no other row's.
+ */
+function evaluateRowVisibleWhen(
+  internalFormStore: InternalFormStore,
+  rowScope: InternalObjectStore,
+  visibleWhen: VisibleWhen,
+): boolean {
+  const actual = resolveRowScopeValue(
+    internalFormStore,
+    rowScope,
+    visibleWhen.field,
+  );
+  return compareVisibleWhen(actual, visibleWhen);
+}
+
+function compareVisibleWhen(actual: unknown, visibleWhen: VisibleWhen): boolean {
   switch (visibleWhen.op) {
     case "equals":
       return actual === visibleWhen.value;
