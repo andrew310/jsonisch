@@ -24,6 +24,13 @@ export {
 export type { PluginDriver } from "./plugin/driver";
 export { inferControl } from "./control";
 export type { ControlKind } from "./control";
+export {
+  readRelationConfig,
+  relationRowIdentityProps,
+  targetToKind,
+  withRelationRowIdentity,
+} from "./relation/relation-config";
+export type { RelationConfig } from "./relation/relation-config";
 export { isEmptyish, isPresenceEqual, isSemanticEqual } from "./dirty";
 export { alignRows } from "./field/align-rows";
 export type { Align } from "./field/align-rows";

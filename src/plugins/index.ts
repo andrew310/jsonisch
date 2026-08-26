@@ -37,3 +37,6 @@ export {
   resolveRowScopeValue,
 } from "./derivation/row-scope";
 export { visibility, visibilityKey } from "./visibility/plugin";
+export { bagger, baggerKey, collectionKeys, computeBag } from "./bagger/plugin";
+export { flattenSourceRow } from "./bagger/compute-scope";
+export type { BaggerOptions, BaggerState } from "./bagger/plugin";
