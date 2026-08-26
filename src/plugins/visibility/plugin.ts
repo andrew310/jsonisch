@@ -78,16 +78,17 @@ function evaluateVisibleWhen(
  * Evaluates a ROW field's visibility rule in its row's scope: the watched
  * value resolves through `resolveRowScopeValue` (live row sibling,
  * derived-aware → canonical row from `offFormValues`), so toggling row A's
- * trigger flips row A's gated field and no other row's.
+ * trigger flips row A's gated field and no other row's. The bracket form
+ * resolves its base through the same row precedence — `loan[key]` reads off
+ * the record handle exactly as it does at root (LOS-819).
  */
 function evaluateRowVisibleWhen(
   internalFormStore: InternalFormStore,
   rowScope: InternalObjectStore,
   visibleWhen: VisibleWhen,
 ): boolean {
-  const actual = resolveRowScopeValue(
-    internalFormStore,
-    rowScope,
+  const actual = resolveWhenRefWith(
+    (key) => resolveRowScopeValue(internalFormStore, rowScope, key),
     visibleWhen.field,
   );
   return compareVisibleWhen(actual, visibleWhen);
@@ -107,24 +108,37 @@ function compareVisibleWhen(actual: unknown, visibleWhen: VisibleWhen): boolean 
 }
 
 /**
- * Resolves a watched-field reference. Two shapes, mirroring the formula
- * grammar: a plain root key resolves through the scope precedence; the
- * bracket form `loan[key]` reads `key` off the OBJECT the scope holds
- * under `loan` (the parent-record handle). An absent or non-object handle
- * resolves `undefined`, so an equals-gated field simply stays hidden —
- * e.g. in a host with no parent record in scope.
+ * Resolves a watched-field reference at ROOT scope via the shared parser.
  */
 function resolveWhenRef(
   internalFormStore: InternalFormStore,
   ref: string,
 ): unknown {
+  return resolveWhenRefWith(
+    (key) => resolveScopeValue(internalFormStore, key),
+    ref,
+  );
+}
+
+/**
+ * Parses a watched-field reference over a scope's own key resolver. Two
+ * shapes, mirroring the formula grammar: a plain key resolves through the
+ * scope precedence; the bracket form `loan[key]` reads `key` off the OBJECT
+ * the scope resolves under `loan` (the parent-record handle). An absent or
+ * non-object handle resolves `undefined`, so an equals-gated field simply
+ * stays hidden — e.g. in a host with no parent record in scope.
+ */
+function resolveWhenRefWith(
+  resolve: (key: string) => unknown,
+  ref: string,
+): unknown {
   const open = ref.indexOf("[");
   if (open > 0 && ref.endsWith("]")) {
-    const base = resolveScopeValue(internalFormStore, ref.slice(0, open));
+    const base = resolve(ref.slice(0, open));
     if (base && typeof base === "object" && !Array.isArray(base)) {
       return readOwn(base, ref.slice(open + 1, -1));
     }
     return undefined;
   }
-  return resolveScopeValue(internalFormStore, ref);
+  return resolve(ref);
 }

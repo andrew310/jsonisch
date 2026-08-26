@@ -223,3 +223,103 @@ describe("visibility signals", () => {
     expect(gated.isDirty.value).toBe(true);
   });
 });
+
+describe("row-scope visibility (LOS-722 / LOS-819)", () => {
+  /**
+   * A relation-zone schema as the stage form composes it: an array whose
+   * items carry the tray keys plus the related dataset's `allOf`. The
+   * trigger is deliberately NOT a tray key — the row resolves it from the
+   * canonical row in `offFormValues` (LOS-819).
+   */
+  function traySchema(triggerRef: string): JsonSchema {
+    return objectSchema({
+      assets: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            id: { type: "string" },
+            gated: { type: "string" },
+          },
+          allOf: [
+            {
+              if: { properties: { [triggerRef]: { const: "purchase" } } },
+              then: { properties: { gated: {} } },
+            },
+          ],
+        },
+      },
+    });
+  }
+
+  test("row trigger among the tray keys gates its own row only", () => {
+    const schema = objectSchema({
+      assets: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            id: { type: "string" },
+            transaction_type: { type: "string" },
+            gated: { type: "string" },
+          },
+          allOf: [
+            {
+              if: { properties: { transaction_type: { const: "purchase" } } },
+              then: { properties: { gated: {} } },
+            },
+          ],
+        },
+      },
+    });
+    const form = createTestStore(schema, {
+      initialInput: {
+        assets: [
+          { id: "a1", transaction_type: "purchase" },
+          { id: "a2", transaction_type: "refinance" },
+        ],
+      },
+    });
+    expect(getFieldStore(form, ["assets", 0, "gated"]).visible?.value).toBe(
+      true,
+    );
+    expect(getFieldStore(form, ["assets", 1, "gated"]).visible?.value).toBe(
+      false,
+    );
+
+    setInput(form, ["assets", 1, "transaction_type"], "purchase");
+    expect(getFieldStore(form, ["assets", 1, "gated"]).visible?.value).toBe(
+      true,
+    );
+  });
+
+  test("unrendered trigger resolves from the canonical row (LOS-819)", () => {
+    const form = createTestStore(traySchema("transaction_type"), {
+      initialInput: { assets: [{ id: "a1" }, { id: "a2" }] },
+      offFormValues: {
+        assets: [
+          { id: "a1", transaction_type: "purchase" },
+          { id: "a2", transaction_type: "refinance" },
+        ],
+      },
+    });
+    expect(getFieldStore(form, ["assets", 0, "gated"]).visible?.value).toBe(
+      true,
+    );
+    expect(getFieldStore(form, ["assets", 1, "gated"]).visible?.value).toBe(
+      false,
+    );
+  });
+
+  test("bracket-form trigger reads the record handle in a row scope (LOS-819)", () => {
+    const form = createTestStore(traySchema("loan[transaction_type]"), {
+      initialInput: { assets: [{ id: "a1" }] },
+      offFormValues: { loan: { transaction_type: "purchase" } },
+    });
+    const gated = getFieldStore(form, ["assets", 0, "gated"]);
+    expect(gated.visible?.value).toBe(true);
+
+    setOffFormValues(form, { loan: { transaction_type: "refinance" } });
+    expect(gated.visible?.value).toBe(false);
+  });
+});
