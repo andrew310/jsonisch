@@ -9,6 +9,7 @@ import type { VisibleWhen } from "../types/visibility";
  *
  * Supported condition shapes (the only ones in seed + prod schemas):
  *   - `{ const: x }`             → equals x
+ *   - `{ enum: [x, y] }`         → one-of [x, y] (LOS-822 multi-value)
  *   - `{ contains: { const: x } }` → contains x (array-valued watchers)
  *
  * A `then` branch keeps the positive op; an `else` branch flips it
@@ -66,6 +67,13 @@ function parseIfCondition(ifBlock: unknown): Condition | null {
     return {
       positive: { field, op: "equals", value: cond.const },
       negative: { field, op: "not-equals", value: cond.const },
+    };
+  }
+
+  if (Array.isArray(cond.enum)) {
+    return {
+      positive: { field, op: "one-of", value: cond.enum },
+      negative: { field, op: "not-one-of", value: cond.enum },
     };
   }
 

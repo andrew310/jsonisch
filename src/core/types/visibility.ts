@@ -1,11 +1,14 @@
 /**
- * The comparison operator of a `VisibleWhen` condition. `equals`/`contains`
- * come from a schema `then` branch; the `else` branch flips them to the
- * `not-` variants.
+ * The comparison operator of a `VisibleWhen` condition. `equals`/`one-of`/
+ * `contains` come from a schema `then` branch; the `else` branch flips them
+ * to the `not-` variants. `one-of` (LOS-822) carries an array `value` and
+ * passes while the watched value equals ANY element.
  */
 export type VisibleWhenOp =
   | "equals"
   | "not-equals"
+  | "one-of"
+  | "not-one-of"
   | "contains"
   | "not-contains";
 

@@ -100,6 +100,10 @@ function compareVisibleWhen(actual: unknown, visibleWhen: VisibleWhen): boolean 
       return actual === visibleWhen.value;
     case "not-equals":
       return actual !== visibleWhen.value;
+    case "one-of":
+      return Array.isArray(visibleWhen.value) && visibleWhen.value.includes(actual);
+    case "not-one-of":
+      return !Array.isArray(visibleWhen.value) || !visibleWhen.value.includes(actual);
     case "contains":
       return Array.isArray(actual) && actual.includes(visibleWhen.value);
     case "not-contains":

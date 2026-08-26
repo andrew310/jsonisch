@@ -79,6 +79,34 @@ describe("resolveConditionals", () => {
     });
   });
 
+  test("enum condition maps to one-of / not-one-of (LOS-822)", () => {
+    const rules = resolveConditionals({
+      type: "object",
+      properties: {},
+      allOf: [
+        {
+          if: {
+            properties: {
+              transaction_type: { enum: ["refinance", "delayed_purchase"] },
+            },
+          },
+          then: { properties: { payoff: {} } },
+          else: { properties: { simple: {} } },
+        },
+      ],
+    } as JsonSchema);
+    expect(rules.payoff).toEqual({
+      field: "transaction_type",
+      op: "one-of",
+      value: ["refinance", "delayed_purchase"],
+    });
+    expect(rules.simple).toEqual({
+      field: "transaction_type",
+      op: "not-one-of",
+      value: ["refinance", "delayed_purchase"],
+    });
+  });
+
   test("first-match-wins across blocks; unsafe keys and malformed blocks skipped", () => {
     const rules = resolveConditionals({
       type: "object",
@@ -116,6 +144,42 @@ describe("visibility signals", () => {
 
     setInput(form, ["transaction_type"], "purchase");
     expect(gated.visible?.value).toBe(true);
+  });
+
+  test("one-of gated field shows while the watched value is any listed option (LOS-822)", () => {
+    const schema: JsonSchema = {
+      ...objectSchema(
+        {
+          transaction_type: { type: "string" },
+          gated: { type: "string" },
+        },
+        [],
+      ),
+      allOf: [
+        {
+          if: {
+            properties: {
+              transaction_type: { enum: ["refinance", "delayed_purchase"] },
+            },
+          },
+          then: { properties: { gated: {} } },
+        },
+      ],
+    };
+    const form = createTestStore(schema, {
+      initialInput: { transaction_type: "purchase" },
+    });
+    const gated = getFieldStore(form, ["gated"]);
+    expect(gated.visible?.value).toBe(false);
+
+    setInput(form, ["transaction_type"], "refinance");
+    expect(gated.visible?.value).toBe(true);
+
+    setInput(form, ["transaction_type"], "delayed_purchase");
+    expect(gated.visible?.value).toBe(true);
+
+    setInput(form, ["transaction_type"], "purchase");
+    expect(gated.visible?.value).toBe(false);
   });
 
   test("ungated fields carry no visibility signal", () => {
