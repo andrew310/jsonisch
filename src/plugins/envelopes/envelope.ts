@@ -4,6 +4,7 @@ import type {
   DerivationMode,
   InternalFormStore,
   InternalValueStore,
+  JsonSchema,
 } from "../../core/types";
 import type {
   EntryMeta,
@@ -18,11 +19,36 @@ import type {
 import { envelopesWire } from "./wire";
 
 /**
- * Resolves a persisted estimate mode: missing / unknown → `estimate`
- * (manual-first, LOS-461).
+ * Schema-declared opening mode for an unpinned estimate field.
+ * Missing / anything other than `"formula"` → `estimate` (manual-first).
  */
-export function resolveSourceMode(meta: SourceMeta): DerivationMode {
-  return meta.mode === "formula" ? "formula" : "estimate";
+export function schemaDefaultSourceMode(
+  schema: JsonSchema | undefined,
+): DerivationMode {
+  return schema?.["x-estimate-default-mode"] === "formula"
+    ? "formula"
+    : "estimate";
+}
+
+/**
+ * Resolves an estimate field's live mode:
+ *   - an explicit `formula` / `estimate` pin always wins
+ *   - no pin + empty value + schema default `formula` → `formula` (LOS-823)
+ *   - otherwise → `estimate` (manual-first, LOS-461: a stored unpinned
+ *     value stays typeable so a schema default cannot clobber it)
+ */
+export function resolveSourceMode(
+  meta: SourceMeta & { value?: unknown },
+  schema?: JsonSchema,
+): DerivationMode {
+  if (meta.mode === "formula" || meta.mode === "estimate") return meta.mode;
+  if (
+    schemaDefaultSourceMode(schema) === "formula" &&
+    isEmptyish(meta.value)
+  ) {
+    return "formula";
+  }
+  return "estimate";
 }
 
 /**
@@ -159,16 +185,19 @@ export function adoptEnvelope(
   live: EstimateEnvelope,
   start: EstimateEnvelope,
   incoming: EstimateEnvelope,
+  schema?: JsonSchema,
 ): { live: EstimateEnvelope; start: EstimateEnvelope };
 export function adoptEnvelope(
   live: HybridEnvelope,
   start: HybridEnvelope,
   incoming: HybridEnvelope,
+  schema?: JsonSchema,
 ): { live: HybridEnvelope; start: HybridEnvelope };
 export function adoptEnvelope(
   live: EstimateEnvelope | HybridEnvelope,
   start: EstimateEnvelope | HybridEnvelope,
   incoming: EstimateEnvelope | HybridEnvelope,
+  schema?: JsonSchema,
 ): {
   live: EstimateEnvelope | HybridEnvelope;
   start: EstimateEnvelope | HybridEnvelope;
@@ -178,6 +207,7 @@ export function adoptEnvelope(
       live as EstimateEnvelope,
       start as EstimateEnvelope,
       incoming,
+      schema,
     );
   }
   return adoptHybrid(
@@ -191,8 +221,10 @@ function adoptSource(
   live: EstimateEnvelope,
   start: EstimateEnvelope,
   incoming: EstimateEnvelope,
+  schema?: JsonSchema,
 ): { live: EstimateEnvelope; start: EstimateEnvelope } {
-  const modeDirty = resolveSourceMode(live) !== resolveSourceMode(start);
+  const modeDirty =
+    resolveSourceMode(live, schema) !== resolveSourceMode(start, schema);
   const valueDirty = !isSemanticEqual(live.value, start.value);
   return {
     start: incoming,
@@ -208,7 +240,7 @@ function adoptSource(
       ...(valueDirty
         ? {
             value: live.value,
-            ...(resolveSourceMode(live) === "estimate"
+            ...(resolveSourceMode(live, schema) === "estimate"
               ? { manualValue: live.manualValue }
               : {}),
           }
@@ -293,7 +325,7 @@ export function syncSourceInput(
   writeEnvelope(form, store, slot, {
     ...live,
     value: input,
-    ...(resolveSourceMode(live) === "estimate"
+    ...(resolveSourceMode(live, store.schema) === "estimate"
       ? { manualValue: isEmptyish(input) ? null : input }
       : {}),
   });

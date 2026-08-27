@@ -63,10 +63,14 @@ function buildScopeSlots(
   }
 }
 
-function sourceDirty(live: EstimateEnvelope, start: EstimateEnvelope): boolean {
+function sourceDirty(
+  live: EstimateEnvelope,
+  start: EstimateEnvelope,
+  schema: InternalValueStore["schema"],
+): boolean {
   return (
-    resolveSourceMode(live) !== resolveSourceMode(start) ||
-    (resolveSourceMode(live) === "estimate" &&
+    resolveSourceMode(live, schema) !== resolveSourceMode(start, schema) ||
+    (resolveSourceMode(live, schema) === "estimate" &&
       !isSemanticEqual(live.value, start.value))
   );
 }
@@ -93,13 +97,15 @@ function buildSourceSlot(
     family: "source",
     envelope,
     startEnvelope,
-    mode: computed<DerivationMode>(() => resolveSourceMode(envelope.value)),
+    mode: computed<DerivationMode>(() =>
+      resolveSourceMode(envelope.value, store.schema),
+    ),
     manualValue: computed<unknown>(() => envelope.value.manualValue ?? null),
     lastFlippedAt: computed<string | undefined>(
       () => envelope.value.lastFlippedAt,
     ),
     isDirty: computed<boolean>(() =>
-      sourceDirty(envelope.value, startEnvelope.value),
+      sourceDirty(envelope.value, startEnvelope.value, store.schema),
     ),
   };
   state.set(store, slot);
@@ -161,7 +167,12 @@ function rebaseScopeSlots(
         form,
         child,
         slot,
-        adoptEnvelope(slot.envelope.value, slot.startEnvelope.value, incoming),
+        adoptEnvelope(
+          slot.envelope.value,
+          slot.startEnvelope.value,
+          incoming,
+          child.schema,
+        ),
       );
     } else {
       const incoming = decodeHybridEnvelope(form, child, readOwn(raw, key));
@@ -169,7 +180,12 @@ function rebaseScopeSlots(
         form,
         child,
         slot,
-        adoptEnvelope(slot.envelope.value, slot.startEnvelope.value, incoming),
+        adoptEnvelope(
+          slot.envelope.value,
+          slot.startEnvelope.value,
+          incoming,
+          child.schema,
+        ),
       );
     }
   }
@@ -188,7 +204,7 @@ function encodeSourceMeta(
 ): SourceMeta {
   const live = slot.envelope.value;
   const start = slot.startEnvelope.value;
-  const mode = resolveSourceMode(live);
+  const mode = resolveSourceMode(live, store.schema);
   const meta: SourceMeta = {
     mode,
     manualValue:
@@ -379,7 +395,7 @@ export function envelopes(): JsonischPlugin<EnvelopeState> {
         }
 
         const meta = encodeSourceMeta(store, slot);
-        return resolveSourceMode(slot.envelope.value) === "estimate"
+        return resolveSourceMode(slot.envelope.value, store.schema) === "estimate"
           ? wrapEstimate(valueOut !== undefined ? valueOut : store.input.value, meta)
           : wrapEstimate(undefined, meta);
       }

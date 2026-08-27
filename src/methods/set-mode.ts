@@ -2,7 +2,10 @@ import { isEmptyish } from "../core/dirty";
 import { getFieldStore } from "../core/field/get-field-store";
 import { batch, untrack } from "../core/framework";
 import type { DerivationMode, Path } from "../core/types";
-import { writeEnvelope } from "../plugins/envelopes/envelope";
+import {
+  resolveSourceMode,
+  writeEnvelope,
+} from "../plugins/envelopes/envelope";
 import { envelopesKey } from "../plugins/envelopes/key";
 import { derivationKey } from "../plugins/derivation/key";
 import { type FormRef, internalOf } from "./form-ref";
@@ -67,7 +70,7 @@ export function setMode(
   batch(() => {
     untrack(() => {
       const live = slot.envelope.value;
-      if ((live.mode === "formula" ? "formula" : "estimate") === mode) {
+      if (resolveSourceMode(live, store.schema) === mode) {
         return;
       }
 

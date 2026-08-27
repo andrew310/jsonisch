@@ -53,8 +53,13 @@ function makeEngine(
 
 const num = (v: unknown): number => (typeof v === "number" ? v : Number.NaN);
 
-function estimateField(formula: string): JsonSchema {
-  return { type: "number", "x-field-type": "computed", "x-formula": formula };
+function estimateField(formula: string, extra?: JsonSchema): JsonSchema {
+  return {
+    type: "number",
+    "x-field-type": "computed",
+    "x-formula": formula,
+    ...extra,
+  };
 }
 
 function hybridField(extra?: JsonSchema): JsonSchema {
@@ -179,6 +184,52 @@ describe("meta channel", () => {
         engine: makeEngine(doubleA()),
       });
       expect(sourceSlotAt(empty, ["fee"]).mode.value).toBe("estimate");
+    });
+
+    test("should open an empty field in formula mode when the schema defaults to formula (LOS-823)", () => {
+      const schema = objectSchema({
+        a: { type: "number" },
+        fee: estimateField("double", { "x-estimate-default-mode": "formula" }),
+      });
+      const empty = createTestStore(schema, {
+        initialInput: { a: 10 },
+        engine: makeEngine(doubleA()),
+      });
+      expect(sourceSlotAt(empty, ["fee"]).mode.value).toBe("formula");
+      expect(derivedAt(empty, ["fee"])).toStrictEqual({ value: 20, error: null });
+      // Schema default is display-only: encode must not fabricate a pin
+      expect(getDirtyInput(empty)).toBe(undefined);
+    });
+
+    test("should keep a stored unpinned value in estimate mode even when the schema defaults to formula (LOS-461)", () => {
+      const schema = objectSchema({
+        a: { type: "number" },
+        fee: estimateField("double", { "x-estimate-default-mode": "formula" }),
+      });
+      const withValue = createTestStore(schema, {
+        initialInput: { a: 10, fee: 7 },
+        engine: makeEngine(doubleA()),
+      });
+      expect(sourceSlotAt(withValue, ["fee"]).mode.value).toBe("estimate");
+      expect(derivedAt(withValue, ["fee"])).toStrictEqual({
+        value: 7,
+        error: null,
+      });
+    });
+
+    test("should honor a persisted pin over the schema default", () => {
+      const schema = objectSchema({
+        a: { type: "number" },
+        fee: estimateField("double", { "x-estimate-default-mode": "formula" }),
+      });
+      const pinned = createTestStore(schema, {
+        initialInput: {
+          a: 10,
+          fee: { kind: "estimate", value: 1234, mode: "estimate" },
+        },
+        engine: makeEngine(doubleA()),
+      });
+      expect(sourceSlotAt(pinned, ["fee"]).mode.value).toBe("estimate");
     });
 
     test("should create the mode signal even without a calc engine", () => {
@@ -555,6 +606,29 @@ describe("meta channel", () => {
       setMode(store, ["fee"], "estimate", { now: "T1" });
       expect(fee.input.value).toBe(999);
       expect(fee.isDirty.value).toBe(false);
+    });
+
+    test("should flip an unpinned schema-default-formula field to estimate (LOS-823)", () => {
+      const store = createTestStore(
+        objectSchema({
+          a: { type: "number" },
+          fee: estimateField("double", { "x-estimate-default-mode": "formula" }),
+        }),
+        {
+          initialInput: { a: 10 },
+          engine: makeEngine(doubleA()),
+        },
+      );
+      expect(sourceSlotAt(store, ["fee"]).mode.value).toBe("formula");
+      setMode(store, ["fee"], "formula", { now: "T0" });
+      expect(sourceSlotAt(store, ["fee"]).isDirty.value).toBe(false);
+
+      setMode(store, ["fee"], "estimate", { now: "T1" });
+      expect(sourceSlotAt(store, ["fee"]).mode.value).toBe("estimate");
+      expect(sourceSlotAt(store, ["fee"]).isDirty.value).toBe(true);
+      expect(getDirtyInput(store)).toMatchObject({
+        fee: { kind: "estimate", mode: "estimate", lastFlippedAt: "T1" },
+      });
     });
 
     test("should be a no-op for the current mode and throw on a non-estimate field", () => {

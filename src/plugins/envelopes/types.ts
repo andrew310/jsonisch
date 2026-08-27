@@ -73,7 +73,8 @@ export interface SourceSlot {
    */
   readonly startEnvelope: Signal<EstimateEnvelope>;
   /**
-   * Resolved estimate/formula mode (`undefined` wire mode → `estimate`).
+   * Resolved estimate/formula mode. An unpinned empty field follows
+   * `x-estimate-default-mode`; a stored unpinned value stays `estimate`.
    */
   readonly mode: ReadonlySignal<DerivationMode>;
   /**
