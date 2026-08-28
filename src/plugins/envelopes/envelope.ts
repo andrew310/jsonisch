@@ -52,16 +52,37 @@ export function resolveSourceMode(
 }
 
 /**
- * Resolves persisted hybrid entry state, falling back to the schema's
- * declared default denominator.
+ * Schema-declared opening unit for an unpinned amount-or-percent field.
+ * Missing / anything other than `"percent"` → `amount` (amount-first).
+ */
+export function schemaDefaultEntryMode(
+  schema: JsonSchema | undefined,
+): EntryMode {
+  return schema?.["x-hybrid-default-mode"] === "percent" ? "percent" : "amount";
+}
+
+/**
+ * Resolves persisted hybrid entry state:
+ *   - an explicit `percent` / `amount` pin always wins
+ *   - no pin + empty value + schema default `percent` → `percent` (LOS-824)
+ *   - otherwise → `amount` (amount-first: a stored unpinned value stays
+ *     dollars so imported/legacy amounts are not treated as percent-owned)
+ * Percent basis falls back to the schema's declared default denominator.
  */
 export function resolveHybridEntry(
   meta: EntryMeta,
   schema: InternalValueStore["schema"],
+  value?: unknown,
 ): { entryMode: EntryMode; percentBasis: string | undefined } {
   const schemaDefault = schema["x-hybrid-default-denominator"];
+  const entryMode: EntryMode =
+    meta.mode === "percent" || meta.mode === "amount"
+      ? meta.mode
+      : schemaDefaultEntryMode(schema) === "percent" && isEmptyish(value)
+        ? "percent"
+        : "amount";
   return {
-    entryMode: meta.mode === "percent" ? "percent" : "amount",
+    entryMode,
     percentBasis:
       typeof meta.basis === "string"
         ? meta.basis
@@ -133,6 +154,7 @@ export function decodeHybridEnvelope(
   const { entryMode, percentBasis } = resolveHybridEntry(
     meta as EntryMeta,
     store.schema,
+    value,
   );
   return {
     kind: "amount-or-percent",

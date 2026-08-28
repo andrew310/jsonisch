@@ -119,7 +119,8 @@ export interface HybridSlot {
    */
   readonly startEnvelope: Signal<HybridEnvelope>;
   /**
-   * The current entry mode.
+   * The current entry mode. An unpinned empty field follows
+   * `x-hybrid-default-mode`; a stored unpinned value stays `amount`.
    */
   readonly entryMode: ReadonlySignal<EntryMode>;
   /**

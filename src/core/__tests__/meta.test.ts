@@ -280,6 +280,51 @@ describe("meta channel", () => {
       expect(slot.percentBasis.value).toBe("purchasePrice");
       expect(slot.isDirty.value).toBe(false);
     });
+
+    test("should open an empty field in percent mode when the schema defaults to percent (LOS-824)", () => {
+      const store = createTestStore(
+        objectSchema({
+          fee: hybridField({
+            "x-hybrid-default-denominator": "purchasePrice",
+            "x-hybrid-default-mode": "percent",
+          }),
+        }),
+      );
+      const slot = hybridSlotAt(store, ["fee"]);
+      expect(slot.entryMode.value).toBe("percent");
+      expect(slot.percentBasis.value).toBe("purchasePrice");
+      expect(slot.isDirty.value).toBe(false);
+      // Schema default is display-only: encode must not fabricate a pin
+      expect(getDirtyInput(store)).toBe(undefined);
+    });
+
+    test("should keep a stored unpinned value in amount mode even when the schema defaults to percent (LOS-824)", () => {
+      const store = createTestStore(
+        objectSchema({
+          fee: hybridField({ "x-hybrid-default-mode": "percent" }),
+        }),
+        { initialInput: { fee: "5000" } },
+      );
+      expect(hybridSlotAt(store, ["fee"]).entryMode.value).toBe("amount");
+    });
+
+    test("should honor a persisted pin over the schema default (LOS-824)", () => {
+      const store = createTestStore(
+        objectSchema({
+          fee: hybridField({ "x-hybrid-default-mode": "percent" }),
+        }),
+        {
+          initialInput: {
+            fee: {
+              kind: "amount-or-percent",
+              value: "5000",
+              mode: "amount",
+            },
+          },
+        },
+      );
+      expect(hybridSlotAt(store, ["fee"]).entryMode.value).toBe("amount");
+    });
   });
 
   describe("envelope decode boundary", () => {
@@ -468,6 +513,27 @@ describe("meta channel", () => {
           value: "6000",
           mode: "percent",
           basis: "totalCommitment" ,
+        },
+      });
+    });
+
+    test("should pin percent when a schema-default-percent field is typed (LOS-824)", () => {
+      const store = createTestStore(
+        objectSchema({
+          points: hybridField({
+            "x-hybrid-default-denominator": "purchasePrice",
+            "x-hybrid-default-mode": "percent",
+          }),
+        }),
+      );
+      setInput(store, ["points"], "6000");
+      expect(hybridSlotAt(store, ["points"]).entryMode.value).toBe("percent");
+      expect(getDirtyInput(store)).toStrictEqual({
+        points: {
+          kind: "amount-or-percent",
+          value: "6000",
+          mode: "percent",
+          basis: "purchasePrice",
         },
       });
     });
