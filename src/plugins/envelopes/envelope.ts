@@ -20,7 +20,7 @@ import { envelopesWire } from "./wire";
 
 /**
  * Schema-declared opening mode for an unpinned estimate field.
- * Missing / anything other than `"formula"` → `estimate` (manual-first).
+ * `"formula"` → formula-first; `"estimate"` / missing → manual-first.
  */
 export function schemaDefaultSourceMode(
   schema: JsonSchema | undefined,
