@@ -26,6 +26,7 @@ export { inferControl } from "./control";
 export type { ControlKind } from "./control";
 export {
   readRelationConfig,
+  relationParentFieldName,
   relationRowIdentityProps,
   targetToKind,
   withRelationRowIdentity,

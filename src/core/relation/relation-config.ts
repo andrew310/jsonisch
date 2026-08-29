@@ -163,6 +163,57 @@ export function targetToKind(
 }
 
 /**
+ * The sibling field a contact picker is scoped to (`memberOfEntityId`).
+ *
+ * Explicit `x-relation-parent` always wins. When it is missing — the live
+ * artifact schema never carried the key — a contact relation whose traits
+ * include exactly one sibling entity relation's role is scoped to that
+ * sibling (LOS-860: titleOfficer traits `["title-company"]` → titleCompany).
+ * Two matches is ambiguous, so no parent is invented.
+ */
+export function relationParentFieldName(
+  schema: JsonSchema,
+  path: readonly (string | number)[],
+  relation: RelationConfig,
+): string | undefined {
+  if (relation.parent) return relation.parent;
+  if (targetToKind(relation.target) !== "contact") return undefined;
+  const traits = relation.traits ?? [];
+  if (traits.length === 0) return undefined;
+  const siblings = propertiesAtParent(schema, path);
+  if (!siblings) return undefined;
+  const fieldName = path[path.length - 1];
+  if (typeof fieldName !== "string") return undefined;
+  const matches: string[] = [];
+  for (const [key, node] of Object.entries(siblings)) {
+    if (key === fieldName) continue;
+    const sibling = readRelationConfig(node);
+    if (!sibling || targetToKind(sibling.target) !== "entity") continue;
+    if (sibling.role && traits.includes(sibling.role)) matches.push(key);
+  }
+  return matches.length === 1 ? matches[0] : undefined;
+}
+
+function propertiesAtParent(
+  schema: JsonSchema,
+  path: readonly (string | number)[],
+): Record<string, JsonSchema> | undefined {
+  let node: JsonSchema = schema;
+  for (const segment of path.slice(0, -1)) {
+    if (typeof segment === "number") {
+      const items = Array.isArray(node.items) ? undefined : node.items;
+      if (!items) return undefined;
+      node = items;
+    } else {
+      const next = node.properties?.[segment];
+      if (!next) return undefined;
+      node = next;
+    }
+  }
+  return node.properties;
+}
+
+/**
  * The row-identity keys a relation row carries beyond the stage-configured
  * nested fields — the autocomplete result contracts (`PartySearchResult` /
  * `AssetSearchResult`), which the ref readers/mergers in relation-widgets
