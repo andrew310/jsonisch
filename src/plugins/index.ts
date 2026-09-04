@@ -38,7 +38,13 @@ export {
 } from "./derivation/row-scope";
 export { visibility, visibilityKey } from "./visibility/plugin";
 export { bagger, baggerKey, collectionKeys, computeBag } from "./bagger/plugin";
-export { checks, checksKey, formulaCheck } from "./checks/plugin";
+export {
+  checks,
+  checksKey,
+  formulaCheck,
+  replaceCheckInstances,
+  UNEVALUABLE_MESSAGE_ID,
+} from "./checks/plugin";
 export type {
   CheckContext,
   CheckDefinition,

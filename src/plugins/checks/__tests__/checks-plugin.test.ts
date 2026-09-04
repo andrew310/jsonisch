@@ -6,30 +6,37 @@ import { setInput } from "../../../methods/set-input";
 import { setOffFormValues } from "../../../methods/set-off-form-values";
 import { envelopes } from "../../envelopes/plugin";
 import type { CalcEngine, JsonSchema } from "../../../core/types";
-import { checks, checksKey } from "../plugin";
-import { formulaCheck } from "../formula";
+import { checks, checksKey, replaceCheckInstances } from "../plugin";
+import { formulaCheck, UNEVALUABLE_MESSAGE_ID } from "../formula";
 import type { Finding } from "../types";
 
 interface StubNode {
   deps: string[];
+  pathRefs?: Array<{ collection: string; field: string }>;
   fn: Mock<(scope: Record<string, unknown>) => unknown>;
 }
 
 function stub(
   deps: string[],
   fn: (scope: Record<string, unknown>) => unknown,
+  pathRefs?: Array<{ collection: string; field: string }>,
 ): StubNode {
-  return { deps, fn: vi.fn(fn) };
+  return { deps, pathRefs, fn: vi.fn(fn) };
 }
 
 function makeEngine(exprs: Record<string, StubNode>): CalcEngine {
   return {
-    parse: (formula) =>
-      Object.prototype.hasOwnProperty.call(exprs, formula)
+    parse: (formula) => {
+      if (formula === "" || !formula.trim()) {
+        return { ok: false, error: "Empty formula" };
+      }
+      return Object.prototype.hasOwnProperty.call(exprs, formula)
         ? { ok: true, node: exprs[formula] }
-        : { ok: false, error: `Unparseable formula: ${formula}` },
+        : { ok: false, error: `Unparseable formula: ${formula}` };
+    },
     evaluate: (node, scope) => (node as StubNode).fn(scope),
     extractDependencies: (node) => (node as StubNode).deps,
+    extractPathRefs: (node) => (node as StubNode).pathRefs ?? [],
   };
 }
 
@@ -84,7 +91,7 @@ describe("checks plugin", () => {
     expect(findingsOf(form)).toEqual([]);
   });
 
-  test("a malformed instance throws naming the row, never skips silently", () => {
+  test("a wrong-typed option throws naming the row, never skips silently", () => {
     const engine = makeEngine({});
     expect(() =>
       createFormStore({
@@ -98,7 +105,7 @@ describe("checks plugin", () => {
                 id: "row-abc",
                 check: "formula",
                 severity: "error",
-                options: {},
+                options: { formula: 12 as unknown as string },
               },
             ],
           }),
@@ -240,7 +247,8 @@ describe("checks plugin", () => {
     const findings = findingsOf(form);
     expect(findings).toHaveLength(1);
     expect(findings[0]?.severity).toBe("info");
-    expect(findings[0]?.message).toMatch(/could not be evaluated/i);
+    expect(findings[0]?.messageId).toBe(UNEVALUABLE_MESSAGE_ID);
+    expect(findings[0]?.message).toMatch(/division by zero/i);
     expect(checksKey.getState(form)!.hasBlockingFinding.value).toBe(false);
   });
 
@@ -334,5 +342,137 @@ describe("checks plugin", () => {
     expect(findingsOf(form)).toEqual([]);
     setOffFormValues(form, { ltv: 0.95 });
     expect(findingsOf(form)).toHaveLength(1);
+  });
+
+  test("blank formula does not throw; findings include unevaluable", () => {
+    const engine = makeEngine({});
+    let form: ReturnType<typeof createFormStore>;
+    expect(() => {
+      form = createFormStore({
+        schema,
+        plugins: [
+          envelopes(),
+          checks({
+            definitions: { formula: formulaCheck(engine) },
+            instances: [
+              {
+                id: "blank",
+                check: "formula",
+                severity: "error",
+                options: { formula: "", message: "never", name: "Blank" },
+              },
+            ],
+          }),
+        ],
+      });
+    }).not.toThrow();
+    const findings = findingsOf(form!);
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.messageId).toBe(UNEVALUABLE_MESSAGE_ID);
+    expect(findings[0]?.message).toMatch(/Empty formula/i);
+  });
+
+  test("loan[fundingDate] resolves the record handle, not rows()", () => {
+    const node = stub(
+      ["loan"],
+      (scope) => {
+        const loan = scope.loan as { fundingDate?: string } | undefined;
+        return loan?.fundingDate != null;
+      },
+      [{ collection: "loan", field: "fundingDate" }],
+    );
+    const engine = makeEngine({ "loan[fundingDate] != null": node });
+    const form = createFormStore({
+      schema: {
+        type: "object",
+        properties: { borrowerName: { type: "string" } },
+      },
+      offFormValues: { loan: { fundingDate: "2026-01-01" } },
+      plugins: [
+        envelopes(),
+        checks({
+          definitions: { formula: formulaCheck(engine) },
+          instances: [
+            {
+              id: "funded",
+              check: "formula",
+              severity: "error",
+              options: {
+                formula: "loan[fundingDate] != null",
+                message: "needs funding date",
+              },
+            },
+          ],
+        }),
+      ],
+    });
+    const findings = findingsOf(form);
+    expect(findings).toEqual([]);
+    expect(node.fn).toHaveBeenCalled();
+    const scope = node.fn.mock.calls[0]![0];
+    expect(scope.loan).toEqual({ fundingDate: "2026-01-01" });
+    expect(Array.isArray(scope.loan)).toBe(false);
+  });
+
+  test("replaceCheckInstances swaps live instances without recreating the store", () => {
+    const engine = makeEngine({
+      false: stub([], () => false),
+    });
+    const form = createFormStore({
+      schema,
+      plugins: [
+        envelopes(),
+        checks({
+          definitions: { formula: formulaCheck(engine) },
+          instances: [],
+        }),
+      ],
+    });
+    expect(findingsOf(form)).toEqual([]);
+    replaceCheckInstances(form, {
+      definitions: { formula: formulaCheck(engine) },
+      instances: [
+        {
+          id: "must",
+          check: "formula",
+          severity: "error",
+          options: { formula: "false", message: "blocked" },
+        },
+      ],
+    });
+    const findings = findingsOf(form);
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.message).toBe("blocked");
+    expect(checksKey.getState(form)!.hasBlockingFinding.value).toBe(true);
+  });
+
+  test("parse failure keeps target paths and the engine error", () => {
+    const engine = makeEngine({});
+    const form = createFormStore({
+      schema,
+      plugins: [
+        envelopes(),
+        checks({
+          definitions: { formula: formulaCheck(engine) },
+          instances: [
+            {
+              id: "bad",
+              check: "formula",
+              severity: "error",
+              options: {
+                formula: "FOO(1)",
+                message: "never shown",
+                targetFieldKeys: ["ltv"],
+              },
+            },
+          ],
+        }),
+      ],
+    });
+    const findings = findingsOf(form);
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.path).toEqual(["ltv"]);
+    expect(findings[0]?.messageId).toBe(UNEVALUABLE_MESSAGE_ID);
+    expect(findings[0]?.message).toMatch(/Unparseable formula: FOO\(1\)/);
   });
 });

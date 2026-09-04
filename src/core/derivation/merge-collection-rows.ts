@@ -9,10 +9,8 @@
  * cleared the field), canonical fills everything the live row doesn't
  * carry — core columns the write model never holds.
  *
- * Semantics ported from the app's `mergeCollectionRows`
- * (apps/web/lib/formulas/merge-collection-rows.ts) so jsonisch's collection
- * overlay matches the current stack's eval-collections behavior. The merged
- * result is for evaluation only; it is never written back into form state.
+ * One home for collection overlay (app re-exports this). The merged result
+ * is for evaluation only; it is never written back into form state.
  */
 export function mergeCollectionRows(
   canonicalRows: ReadonlyArray<Record<string, unknown>>,

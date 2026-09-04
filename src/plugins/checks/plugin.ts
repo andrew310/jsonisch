@@ -1,11 +1,19 @@
-import { computed } from "../../core/framework";
+import { computed, createSignal } from "../../core/framework";
 import type { JsonischPlugin } from "../../core/plugin/types";
 import { mergeCollectionRows } from "../../core/derivation/merge-collection-rows";
+import { getFieldInput } from "../../core/field/get-field-input";
 import { readOwn } from "../../core/schema-utils";
-import type { InternalFormStore, Path } from "../../core/types";
-import { resolveScopeValue } from "../derivation/resolve-scope-value";
+import type {
+  InternalFieldStore,
+  InternalFormStore,
+  Path,
+} from "../../core/types";
+import type { ReadonlySignal, Signal } from "../../core/signal";
+import { derivationKey } from "../derivation/key";
+import { internalOf, type FormRef } from "../../methods/form-ref";
 import { interpolate } from "./interpolate";
 import { checksKey, type ChecksState } from "./key";
+import { UNEVALUABLE_MESSAGE_ID } from "./formula";
 import type {
   CheckContext,
   CheckDefinition,
@@ -30,13 +38,17 @@ export type {
   Severity,
   SeverityConfig,
 } from "./types";
-export { formulaCheck } from "./formula";
+export { formulaCheck, UNEVALUABLE_MESSAGE_ID } from "./formula";
 
 const SEVERITY_ORDER: Record<Severity, number> = {
   error: 0,
   warning: 1,
   info: 2,
 };
+
+type CollectionsBag = Readonly<
+  Record<string, ReadonlyArray<Record<string, unknown>>>
+>;
 
 /**
  * Checks plugin (LOS-605 / spec D8): eslint's contract on a form store.
@@ -45,6 +57,9 @@ const SEVERITY_ORDER: Record<Severity, number> = {
  * Register after derivation so a check that reads a formula field resolves
  * through its derived slot. Array order, not a hard `dependsOn` — a form
  * without a calc engine legitimately omits derivation.
+ *
+ * Always register (even with zero instances). Live instance edits go through
+ * `replaceCheckInstances` so the host does not remount the form.
  */
 export function checks(config: ChecksConfig): JsonischPlugin<ChecksState> {
   return {
@@ -52,16 +67,16 @@ export function checks(config: ChecksConfig): JsonischPlugin<ChecksState> {
     key: checksKey,
 
     build(form) {
-      const scope = freezeScope(form);
-      const runtimes = registerInstances(config, scope);
-
-      const perInstance = runtimes.map((runtime) =>
-        computed(() => evaluateInstance(runtime)),
+      const collections: Signal<CollectionsBag> = createSignal(
+        config.collections ?? Object.freeze({}),
       );
+      const scope = freezeScope(form, collections);
+      const instances: Signal<readonly ReadonlySignal<Finding[]>[]> =
+        createSignal(instanceComputeds(config, scope));
 
       const findings = computed(() => {
         const all: Finding[] = [];
-        for (const slot of perInstance) {
+        for (const slot of instances.value) {
           all.push(...slot.value);
         }
         return [...all].sort(
@@ -75,9 +90,37 @@ export function checks(config: ChecksConfig): JsonischPlugin<ChecksState> {
         findings.value.some((finding) => finding.severity === "error"),
       );
 
-      return { findings, hasBlockingFinding };
+      return { findings, hasBlockingFinding, instances, collections };
     },
   };
+}
+
+/**
+ * Re-registers check instances on a live form store (admin edits, late
+ * prop arrival) without remounting. Swaps the per-instance computeds the
+ * `findings` signal already reads.
+ */
+export function replaceCheckInstances(
+  form: FormRef,
+  config: ChecksConfig,
+): void {
+  const internal = internalOf(form);
+  const state = checksKey.getState(internal);
+  if (!state) {
+    throw new Error("replaceCheckInstances: checks plugin is not registered");
+  }
+  state.collections.value = config.collections ?? Object.freeze({});
+  const scope = freezeScope(internal, state.collections);
+  state.instances.value = instanceComputeds(config, scope);
+}
+
+function instanceComputeds(
+  config: ChecksConfig,
+  scope: CheckScope,
+): readonly ReadonlySignal<Finding[]>[] {
+  return registerInstances(config, scope).map((runtime) =>
+    computed(() => evaluateInstance(runtime)),
+  );
 }
 
 interface InstanceRuntime {
@@ -145,7 +188,7 @@ function mergeAndValidateOptions(
     instance.options && typeof instance.options === "object"
       ? instance.options
       : {};
-  const merged = { ...defaults, ...provided };
+  const merged = { ...defaults, ...provided } as Record<string, unknown>;
   const schema = definition.meta.optionsSchema;
   if (schema === false) return Object.freeze(merged);
   if (schema === undefined) {
@@ -160,32 +203,110 @@ function mergeAndValidateOptions(
     ? (schema.required as string[])
     : [];
   for (const key of required) {
-    const value = (merged as Record<string, unknown>)[key];
-    if (value === undefined || value === null || value === "") {
+    const value = merged[key];
+    // Blank string is a tenant-authored empty formula → unevaluable finding,
+    // not a registration throw (admin allows saving blank).
+    if (value === undefined || value === null) {
       throw new Error(
         `Check instance "${instance.id}" (${instance.check}): missing option "${key}"`,
       );
     }
   }
+  const properties =
+    schema.properties && typeof schema.properties === "object"
+      ? (schema.properties as Record<string, Record<string, unknown>>)
+      : {};
+  for (const [key, propSchema] of Object.entries(properties)) {
+    if (!Object.prototype.hasOwnProperty.call(merged, key)) continue;
+    const value = merged[key];
+    if (value === undefined) continue;
+    validateOptionType(instance, key, value, propSchema);
+  }
   return Object.freeze(merged);
 }
 
-function freezeScope(form: InternalFormStore): CheckScope {
-  const scope: CheckScope = {
-    get(key) {
-      return resolveScopeValue(form, key);
-    },
-    rows(collection) {
-      const live = resolveScopeValue(form, collection);
-      const canonical = readOwn(form.offFormValues.value, collection);
-      if (Array.isArray(canonical)) {
-        return mergeCollectionRows(
-          canonical as Array<Record<string, unknown>>,
-          live,
-        );
+function validateOptionType(
+  instance: CheckInstanceConfig,
+  key: string,
+  value: unknown,
+  propSchema: Record<string, unknown>,
+): void {
+  const named = `Check instance "${instance.id}" (${instance.check})`;
+  if (propSchema.type === "string") {
+    if (typeof value !== "string") {
+      throw new Error(`${named}: option "${key}" must be a string`);
+    }
+    return;
+  }
+  if (propSchema.type === "array") {
+    if (!Array.isArray(value)) {
+      throw new Error(`${named}: option "${key}" must be an array`);
+    }
+    const items = propSchema.items as Record<string, unknown> | undefined;
+    if (items?.type === "string") {
+      for (const entry of value) {
+        if (typeof entry !== "string") {
+          throw new Error(
+            `${named}: option "${key}" must be an array of strings`,
+          );
+        }
       }
-      return Array.isArray(live)
-        ? (live as Array<Record<string, unknown>>)
+    }
+  }
+}
+
+/**
+ * Live form / derived value only — offForm fill belongs to the derivation
+ * closure in `get`, not here.
+ */
+function resolveLiveFormValue(
+  form: InternalFormStore,
+  key: string,
+): unknown {
+  const child = readOwn(form.children, key) as InternalFieldStore | undefined;
+  if (!child) return undefined;
+  const slot =
+    child.kind === "value" ? derivationKey.get(form, child) : undefined;
+  if (slot) {
+    const state = slot.derived.value;
+    return state.error === null ? state.value : undefined;
+  }
+  return getFieldInput(child);
+}
+
+function freezeScope(
+  form: InternalFormStore,
+  collections: ReadonlySignal<CollectionsBag>,
+): CheckScope {
+  const get = (key: string): unknown => {
+    const formValue = resolveLiveFormValue(form, key);
+    const offValue = readOwn(form.offFormValues.value, key);
+    const fromCollections = readOwn(collections.value, key);
+    const live = formValue === undefined ? offValue : formValue;
+
+    // Plugin canonical collections overlay the live shelf when both are rows.
+    if (Array.isArray(fromCollections) && Array.isArray(live)) {
+      return mergeCollectionRows(
+        fromCollections as Array<Record<string, unknown>>,
+        live,
+      );
+    }
+    // Same merge-both-arrays rule as derivation's LOS-514 closure.
+    if (Array.isArray(offValue) && Array.isArray(formValue)) {
+      return mergeCollectionRows(
+        offValue as Array<Record<string, unknown>>,
+        formValue,
+      );
+    }
+    return live;
+  };
+
+  const scope: CheckScope = {
+    get,
+    rows(collection) {
+      const value = get(collection);
+      return Array.isArray(value)
+        ? (value as Array<Record<string, unknown>>)
         : [];
     },
     values() {
@@ -193,7 +314,10 @@ function freezeScope(form: InternalFormStore): CheckScope {
         ...form.offFormValues.value,
       };
       for (const key of Object.keys(form.children)) {
-        bag[key] = scope.get(key);
+        bag[key] = get(key);
+      }
+      for (const key of Object.keys(collections.value)) {
+        if (!(key in bag)) bag[key] = get(key);
       }
       return bag;
     },
@@ -204,30 +328,42 @@ function freezeScope(form: InternalFormStore): CheckScope {
 function evaluateInstance(runtime: InstanceRuntime): Finding[] {
   try {
     runtime.evaluate();
-  } catch {
+  } catch (err) {
     runtime.takeReports();
-    return [
-      findingOf(runtime, {
-        messageId: "unevaluable",
-        message: "could not be evaluated",
-      }),
-    ];
+    const options = runtime.options as {
+      targetFieldKeys?: readonly string[];
+    };
+    const targets = options.targetFieldKeys ?? [];
+    const descriptor: FindingDescriptor = {
+      messageId: UNEVALUABLE_MESSAGE_ID,
+      data: {
+        error: err instanceof Error ? err.message : String(err),
+      },
+      paths: targets.map((key) => [key]),
+    };
+    return findingsFromDescriptor(runtime, descriptor);
   }
 
   const reported = runtime.takeReports();
   const findings: Finding[] = [];
   for (const descriptor of reported) {
-    const message = resolveMessage(runtime, descriptor);
-    const paths = descriptor.paths;
-    if (!paths || paths.length === 0) {
-      findings.push(findingOf(runtime, { ...descriptor, message, path: [] }));
-      continue;
-    }
-    for (const path of paths) {
-      findings.push(findingOf(runtime, { ...descriptor, message, path }));
-    }
+    findings.push(...findingsFromDescriptor(runtime, descriptor));
   }
   return findings;
+}
+
+function findingsFromDescriptor(
+  runtime: InstanceRuntime,
+  descriptor: FindingDescriptor,
+): Finding[] {
+  const message = resolveMessage(runtime, descriptor);
+  const paths = descriptor.paths;
+  if (!paths || paths.length === 0) {
+    return [findingOf(runtime, { ...descriptor, message, path: [] })];
+  }
+  return paths.map((path) =>
+    findingOf(runtime, { ...descriptor, message, path }),
+  );
 }
 
 function resolveMessage(
