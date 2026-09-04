@@ -38,5 +38,18 @@ export {
 } from "./derivation/row-scope";
 export { visibility, visibilityKey } from "./visibility/plugin";
 export { bagger, baggerKey, collectionKeys, computeBag } from "./bagger/plugin";
+export { checks, checksKey, formulaCheck } from "./checks/plugin";
+export type {
+  CheckContext,
+  CheckDefinition,
+  CheckInstanceConfig,
+  CheckScope,
+  ChecksConfig,
+  ChecksState,
+  Finding,
+  FormulaOptions,
+  Severity,
+  SeverityConfig,
+} from "./checks/plugin";
 export { flattenSourceRow } from "./bagger/compute-scope";
 export type { BaggerOptions, BaggerState } from "./bagger/plugin";
