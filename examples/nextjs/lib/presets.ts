@@ -6,86 +6,97 @@ export interface Preset {
   readonly schema: JsonSchema;
 }
 
-// Three schemas-as-values. In a real app these rows live in a database
-// (or arrive from an agent); here they seed the editor.
+// Three schemas-as-values, deliberately from unrelated businesses: the
+// point of the preset select is the SAME widget registry rendering a
+// totally different vertical in one click. In a real app these rows live
+// in a database (or arrive from an agent); here they seed the editor.
 export const presets: readonly Preset[] = [
   {
-    id: "loan",
-    label: "Bridge loan application",
+    id: "agency",
+    label: "Client onboarding · creative agency",
     schema: {
       type: "object",
-      title: "Bridge loan application",
-      required: ["borrowerName", "loanType", "loanAmount"],
+      title: "Client onboarding",
+      description:
+        "The intake form a creative agency tailors per engagement — no deploy between clients.",
+      required: ["companyName", "contactEmail", "projectType"],
       properties: {
-        borrowerName: { type: "string", title: "Borrower name" },
-        borrowerEmail: {
+        companyName: { type: "string", title: "Company name" },
+        contactEmail: {
           type: "string",
           format: "email",
-          title: "Borrower email",
+          title: "Contact email",
         },
-        loanType: {
+        projectType: {
           type: "string",
-          title: "Loan type",
-          enum: ["bridge", "construction", "rental"],
+          title: "Project type",
+          enum: ["brand identity", "website", "motion"],
           "x-ui": { control: "select" },
         },
-        loanAmount: {
+        budget: {
           type: "number",
-          title: "Loan amount",
+          title: "Budget",
           minimum: 1,
           "x-ui": { control: "currency" },
         },
-        interestRate: {
-          type: "number",
-          title: "Interest rate (%)",
-          minimum: 0,
-          maximum: 25,
-        },
-        closingDate: {
+        kickoffDate: {
           type: "string",
           format: "date",
-          title: "Target closing date",
+          title: "Kickoff date",
         },
-        firstTimeInvestor: {
-          type: "boolean",
-          title: "First-time investor",
+        referral: {
+          type: "string",
+          title: "Where did you hear about us?",
         },
-        monthlyPayment: {
+        depositDue: {
           type: "number",
-          title: "Monthly payment (interest-only)",
+          title: "Deposit due (30%)",
           "x-ui": { control: "formula" },
-          "x-formula": "loanAmount * interestRate / 100 / 12",
+          "x-formula": "budget * 0.3",
         },
       },
     },
   },
   {
-    id: "invoice",
-    label: "Invoice line",
+    id: "photographer",
+    label: "Booking form · wedding photographer",
     schema: {
       type: "object",
-      title: "Invoice line",
-      required: ["customer", "description", "quantity", "unitPrice"],
+      title: "Wedding booking",
+      description:
+        "A different business entirely — rendered by the same widget registry.",
+      required: ["coupleNames", "eventDate", "package"],
       properties: {
-        customer: { type: "string", title: "Customer" },
-        description: { type: "string", title: "Description" },
-        quantity: { type: "number", title: "Quantity", minimum: 1 },
-        unitPrice: {
+        coupleNames: { type: "string", title: "Couple's names" },
+        venue: { type: "string", title: "Venue" },
+        eventDate: {
+          type: "string",
+          format: "date",
+          title: "Event date",
+        },
+        package: {
+          type: "string",
+          title: "Package",
+          enum: ["elopement", "half-day", "full-day"],
+          "x-ui": { control: "select" },
+        },
+        coverageHours: {
           type: "number",
-          title: "Unit price",
+          title: "Coverage hours",
+          minimum: 1,
+          maximum: 14,
+        },
+        hourlyRate: {
+          type: "number",
+          title: "Hourly rate",
           "x-ui": { control: "currency" },
         },
-        taxRate: { type: "number", title: "Tax rate (%)", minimum: 0 },
-        notes: {
-          type: "string",
-          title: "Notes",
-          "x-ui": { control: "textarea" },
-        },
-        total: {
+        secondShooter: { type: "boolean", title: "Second shooter" },
+        estimatedTotal: {
           type: "number",
-          title: "Total",
+          title: "Estimated total",
           "x-ui": { control: "formula" },
-          "x-formula": "quantity * unitPrice * (1 + taxRate / 100)",
+          "x-formula": "coverageHours * hourlyRate",
         },
       },
     },
@@ -95,29 +106,30 @@ export const presets: readonly Preset[] = [
     label: "Agent output (seconds old)",
     schema: {
       type: "object",
-      title: "Deployment approval",
+      title: "Project brief intake",
       description:
-        "Emitted by an agent that needs a human sign-off before shipping. The schema it wrote IS the form — and the same contract validates the reply.",
-      required: ["approver", "environment"],
+        "An agent drafted this schema seconds after a sales call, to collect what it couldn't infer. The schema it wrote IS the form — and the same contract validates the reply.",
+      required: ["projectName", "launchWindow"],
       properties: {
-        approver: { type: "string", title: "Your name" },
-        environment: {
+        projectName: { type: "string", title: "Project name" },
+        launchWindow: {
           type: "string",
-          title: "Environment",
-          enum: ["staging", "production"],
+          title: "Launch window",
+          enum: ["this quarter", "next quarter", "flexible"],
           "x-ui": { control: "select" },
         },
-        replicas: {
-          type: "number",
-          title: "Replicas",
-          minimum: 1,
-          maximum: 12,
-        },
-        skipCanary: { type: "boolean", title: "Skip canary stage" },
-        reason: {
+        successMetric: {
           type: "string",
-          title: "Why is this safe to ship?",
+          title: "What does success look like?",
+        },
+        outOfScope: {
+          type: "string",
+          title: "Anything explicitly out of scope?",
           "x-ui": { control: "textarea" },
+        },
+        hasExistingBrand: {
+          type: "boolean",
+          title: "Existing brand guidelines",
         },
       },
     },

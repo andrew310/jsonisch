@@ -97,9 +97,14 @@ export function Playground() {
             Edit it and watch the form rearrange. Add a property, change a
             title, move a field into <code>required</code>.
           </CardDescription>
+          {/* The preset switch is the demo: one registry, three unrelated
+              businesses. */}
+          <p className="text-muted-foreground pt-1 font-mono text-xs">
+            whose form is this?
+          </p>
           <Select value={presetId} onValueChange={selectPreset}>
             <SelectTrigger className="w-full">
-              <SelectValue placeholder="Choose a preset" />
+              <SelectValue placeholder="Choose a business" />
             </SelectTrigger>
             <SelectContent>
               {presets.map((preset) => (

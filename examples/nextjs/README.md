@@ -13,20 +13,22 @@ its own; the engine is always the host's).
 ```sh
 cd examples/nextjs
 pnpm install
-pnpm dev      # http://localhost:3000
+pnpm dev      # http://localhost:3000 — landing page; playground at /playground
 ```
 
 `pnpm build` must pass; the app has no tests of its own.
 
 ## What to try
 
-- Pick a preset (a bridge-loan application, an invoice line, or a schema
-  "an agent just wrote"), then edit the JSON: retitle a field, add a
-  property, move a key into `required`, change an `enum`.
+- Pick a preset (a creative agency's client onboarding, a wedding
+  photographer's booking form, or a schema "an agent just wrote") — three
+  unrelated businesses through the same widget registry — then edit the
+  JSON: retitle a field, add a property, move a key into `required`,
+  change an `enum`.
 - Break the JSON mid-edit — the form keeps rendering the last schema that
   parsed, with a parse notice under the editor.
-- Type into `loanAmount` and `interestRate` and watch `monthlyPayment`
-  recompute; submit and note the derived field is absent from the payload.
+- Type into `budget` and watch `depositDue` recompute; submit and note the
+  derived field is absent from the payload.
 - Submit with a required field empty — AJV errors land under the fields.
 
 ## Local development against jsonisch source

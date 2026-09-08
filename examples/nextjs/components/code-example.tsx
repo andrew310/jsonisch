@@ -45,27 +45,27 @@ export const { useAppForm, Form, Field } = createFormHook({
   },
 });`;
 
-const loanFormCode = `// Fetched from your database — a VALUE, not a type
+const onboardingFormCode = `// Fetched from your database — a VALUE, not a type
 const schema = {
   type: "object",
-  required: ["borrowerName"],
+  required: ["companyName"],
   properties: {
-    borrowerName: { type: "string", title: "Borrower name" },
-    loanAmount: {
+    companyName: { type: "string", title: "Company name" },
+    budget: {
       type: "number",
-      title: "Loan amount",
+      title: "Budget",
       "x-ui": { control: "currency" },
     },
-    loanType: {
+    projectType: {
       type: "string",
-      title: "Loan type",
-      enum: ["bridge", "construction", "rental"],
+      title: "Project type",
+      enum: ["brand identity", "website", "motion"],
       "x-ui": { control: "select" },
     },
   },
 };
 
-function LoanForm({ record }: { record: unknown }) {
+function OnboardingForm({ record }: { record: unknown }) {
   const form = useAppForm({ schema, initialInput: record });
   return <Form of={form} onSubmit={(output) => save(output)} />;
 }`;
@@ -73,7 +73,7 @@ function LoanForm({ record }: { record: unknown }) {
 const files = [
   { name: "widgets.tsx", lang: "tsx", code: widgetsCode },
   { name: "form.ts", lang: "ts", code: formCode },
-  { name: "loan-form.tsx", lang: "tsx", code: loanFormCode },
+  { name: "onboarding-form.tsx", lang: "tsx", code: onboardingFormCode },
 ] as const;
 
 // A minimal TextMate theme carrying the brand's code palette: strings

@@ -12,19 +12,24 @@ const plugins = [envelopes(), derivation(demoEngine)];
 // uses. Type in the form — the derived field recomputes.
 const heroSchema: JsonSchema = {
   type: "object",
-  required: ["loanAmount"],
+  required: ["projectType"],
   properties: {
-    loanAmount: {
+    projectType: {
+      type: "string",
+      title: "Project type",
+      enum: ["brand identity", "website", "motion"],
+      "x-ui": { control: "select" },
+    },
+    budget: {
       type: "number",
-      title: "Loan amount",
+      title: "Budget",
       "x-ui": { control: "currency" },
     },
-    interestRate: { type: "number", title: "Interest rate (%)" },
-    monthlyPayment: {
+    depositDue: {
       type: "number",
-      title: "Monthly payment",
+      title: "Deposit due (30%)",
       "x-ui": { control: "formula" },
-      "x-formula": "loanAmount * interestRate / 100 / 12",
+      "x-formula": "budget * 0.3",
     },
   },
 };
@@ -33,7 +38,7 @@ export function HeroDemo() {
   const form = useAppForm({
     schema: heroSchema,
     plugins,
-    initialInput: { loanAmount: 250000, interestRate: 9.5 },
+    initialInput: { projectType: "brand identity", budget: 18000 },
   });
   return (
     <div className="border-border bg-card w-full overflow-hidden rounded-xl border">
