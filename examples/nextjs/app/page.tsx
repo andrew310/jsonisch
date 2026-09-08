@@ -61,7 +61,10 @@ export default function Home() {
           {/* logo-screen.png = the painted logo with blacks crushed to true
               zero (JPEG block noise lifts under screen blending); the plate
               vanishes into the dark page, glows add light as painted. */}
-          <div className="relative">
+          {/* -mb pulls the demo card up under him: the artwork rides
+              centered in a square canvas, so ~30px of empty canvas hides
+              below his feet. */}
+          <div className="relative -mb-9">
             {/* The black-crush that kills JPEG blocks also ate the painted
                 ambient halo — this radial puts it back behind him. */}
             <div
