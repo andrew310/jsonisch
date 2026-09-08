@@ -128,3 +128,15 @@
       0 0 40px var(--glow-close);
   }
 }
+
+/* Brand glow on the focused control — the mockup's lit-input treatment.
+   Composes ring + bloom in one box-shadow (Tailwind's ring is box-shadow,
+   so a separate rule would clobber it). */
+input:focus-visible,
+textarea:focus-visible,
+button[role="combobox"]:focus-visible {
+  border-color: var(--brace-open);
+  box-shadow:
+    0 0 0 3px color-mix(in oklab, var(--brace-open) 28%, transparent),
+    0 0 16px rgba(69, 212, 255, 0.28);
+}
