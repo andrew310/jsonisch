@@ -438,7 +438,10 @@ export function envelopes(): JsonischPlugin<EnvelopeState> {
   };
 }
 
-declare module "../../react/types" {
+// Public-specifier augmentation — see the twin block in
+// plugins/derivation/plugin.ts for why a relative path must never appear
+// here (issue #28).
+declare module "jsonisch/react" {
   interface FieldStoreSlots {
     /**
      * The estimate/formula mode of an estimate field, `undefined`

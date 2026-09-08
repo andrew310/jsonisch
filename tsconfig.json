@@ -10,7 +10,15 @@
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
     "noEmit": true,
-    "rootDir": "."
+    "rootDir": ".",
+    // Self-reference for the plugins' `declare module "jsonisch/react"`
+    // FieldStoreSlots augmentations: maps the public specifier onto the
+    // DECLARING module (react/types.ts), so the merge lands on the same
+    // interface every internal import sees. Points at src, never dist —
+    // typecheck must not require a build.
+    "paths": {
+      "jsonisch/react": ["./src/react/types.ts"]
+    }
   },
   "include": ["src", "tsdown.config.ts", "vitest.config.ts"]
 }

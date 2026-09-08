@@ -140,7 +140,11 @@ export function derivation(
   };
 }
 
-declare module "../../react/types" {
+// Augments the PUBLIC specifier, not a relative path: the emitted d.ts
+// carries this block verbatim, and only "jsonisch/react" resolves for
+// consumers (issue #28). In-repo it resolves onto the declaring module
+// via the tsconfig "paths" self-reference.
+declare module "jsonisch/react" {
   interface FieldStoreSlots {
     /**
      * The mode-aware derived output of a formula/estimate field (what the
