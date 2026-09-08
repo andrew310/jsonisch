@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
+import { SchemaEditor } from "@/components/schema-editor";
 import { DemoForm } from "@/components/demo-form";
 import { JsonPretty } from "@/components/json-pretty";
 import { presets } from "@/lib/presets";
@@ -116,12 +116,10 @@ export function Playground() {
           </Select>
         </CardHeader>
         <CardContent className="grid gap-2">
-          <Textarea
-            aria-label="Schema editor"
-            spellCheck={false}
-            className="bg-background/60 min-h-[480px] resize-y font-mono text-xs leading-relaxed"
+          <SchemaEditor
+            label="Schema editor"
             value={text}
-            onChange={(e) => applyText(e.target.value)}
+            onChange={applyText}
           />
           {parseError ? (
             <p className="text-destructive text-sm">

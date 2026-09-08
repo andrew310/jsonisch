@@ -6,11 +6,13 @@ export function SiteNav() {
     <header className="border-border/60 border-b">
       <nav className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
         <Link href="/" className="flex items-center gap-2.5">
+          {/* mark.png is the tight crop: artwork fills the box, so the
+              lockup centers optically instead of floating in margins. */}
           <Image
-            src="/logo.jpg"
+            src="/mark.png"
             alt=""
-            width={28}
-            height={28}
+            width={26}
+            height={26}
             className="rounded-md"
             priority
           />
