@@ -6,23 +6,17 @@ export function SiteNav() {
     <header className="border-border/60 border-b">
       <nav className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
         <Link href="/" className="flex items-center gap-2.5">
-          {/* The lockup rebuilds the logo from live parts: typeset braces
-              (crisp and baseline-aligned at any size) around the sprite —
-              cyan opens, pink closes, per the brand rule. */}
-          <span
-            aria-hidden="true"
-            className="flex items-center gap-[3px] font-mono text-lg font-medium"
-          >
-            <span className="text-brace-open">{"{"}</span>
-            <Image
-              src="/mascot.png"
-              alt=""
-              width={22}
-              height={22}
-              priority
-            />
-            <span className="text-brace-close">{"}"}</span>
-          </span>
+          {/* One artwork everywhere: the painted logo, plate removed by
+              screen blending (Andrew's 🅱️ ruling — no typeset-brace
+              reconstructions). The favicon is this artwork's face crop. */}
+          <Image
+            src="/logo-screen.png"
+            alt=""
+            width={34}
+            height={34}
+            priority
+            style={{ mixBlendMode: "screen" }}
+          />
           <span className="font-mono text-sm font-medium tracking-tight">
             jsonisch
           </span>
