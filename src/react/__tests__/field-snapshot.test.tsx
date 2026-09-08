@@ -40,7 +40,7 @@ const estimateSchema = objectSchema({
   fee: { type: "number", "x-field-type": "computed", "x-formula": "double" },
 });
 
-const hybridSchema = objectSchema({
+const amountOrPercentSchema = objectSchema({
   cost: {
     type: "string",
     "x-field-type": "hybrid",
@@ -97,7 +97,7 @@ describe("plugin fieldSnapshot contributions", () => {
     expect(typeof field.setMode).toBe("function");
     expect(field.derived).toEqual({ value: 20, error: null });
     expect(field.formulaValue).toEqual({ value: 20, error: null });
-    // The envelopes plugin contributes nothing hybrid-family here
+    // The envelopes plugin contributes nothing amount-or-percent-family here
     expect(field.entryMode).toBeUndefined();
     expect(field.percentBasis).toBeUndefined();
   });
@@ -121,11 +121,11 @@ describe("plugin fieldSnapshot contributions", () => {
     expect(field).not.toBe(before);
   });
 
-  it("surfaces hybrid entry state and setters on an amount-or-percent field", () => {
+  it("surfaces amount-or-percent entry state and setters on an amount-or-percent field", () => {
     let field!: FieldStore;
     render(
       <Harness
-        schema={hybridSchema}
+        schema={amountOrPercentSchema}
         initialInput={{}}
         path={["cost"]}
         onField={(f) => (field = f)}
@@ -141,7 +141,7 @@ describe("plugin fieldSnapshot contributions", () => {
     act(() => field.setPercentBasis("purchasePrice"));
     expect(field.percentBasis).toBe("purchasePrice");
 
-    // Source-family members are absent on a hybrid field
+    // Estimate-family members are absent on an amount-or-percent field
     expect(field.mode).toBeUndefined();
     expect(field.derived).toBeUndefined();
   });
@@ -150,7 +150,7 @@ describe("plugin fieldSnapshot contributions", () => {
     const fields: FieldStore[] = [];
     render(
       <Harness
-        schema={hybridSchema}
+        schema={amountOrPercentSchema}
         initialInput={{}}
         path={["cost"]}
         onField={(f) => fields.push(f)}

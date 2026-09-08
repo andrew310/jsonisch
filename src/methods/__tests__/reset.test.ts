@@ -13,7 +13,7 @@ import {
   objectSchema,
 } from "../../core/vitest/utils";
 import { envelopesKey } from "../../plugins/envelopes/key";
-import type { SourceSlot } from "../../plugins/envelopes/types";
+import type { EstimateSlot } from "../../plugins/envelopes/types";
 import type { InternalFormStore, Path } from "../../core/types";
 import { reset } from "../reset";
 import { setInput } from "../set-input";
@@ -166,10 +166,10 @@ describe("reset", () => {
   });
 
   test("should adopt the whole estimate envelope from a new initialInput", () => {
-    function sourceSlotAt(form: InternalFormStore, path: Path): SourceSlot {
+    function estimateSlotAt(form: InternalFormStore, path: Path): EstimateSlot {
       const slot = envelopesKey.get(form, getValueStore(form, path));
-      if (slot?.family !== "source") {
-        throw new Error("Expected a source slot");
+      if (slot?.family !== "estimate") {
+        throw new Error("Expected an estimate slot");
       }
       return slot;
     }
@@ -184,14 +184,14 @@ describe("reset", () => {
         },
       },
     );
-    expect(sourceSlotAt(store, ["fee"]).mode.value).toBe("estimate");
+    expect(estimateSlotAt(store, ["fee"]).mode.value).toBe("estimate");
 
     reset(store, {
       initialInput: { fee: { kind: "estimate", value: 1, mode: "formula" } },
     });
 
     const fee = getValueStore(store, ["fee"]);
-    const slot = sourceSlotAt(store, ["fee"]);
+    const slot = estimateSlotAt(store, ["fee"]);
     expect(fee.input.value).toBe(1);
     expect(slot.mode.value).toBe("formula");
     expect(slot.isDirty.value).toBe(false);

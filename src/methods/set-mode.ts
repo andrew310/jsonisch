@@ -3,7 +3,7 @@ import { getFieldStore } from "../core/field/get-field-store";
 import { batch, untrack } from "../core/framework";
 import type { DerivationMode, Path } from "../core/types";
 import {
-  resolveSourceMode,
+  resolveEstimateMode,
   writeEnvelope,
 } from "../plugins/envelopes/envelope";
 import { envelopesKey } from "../plugins/envelopes/key";
@@ -61,16 +61,16 @@ export function setMode(
     store.kind === "value"
       ? envelopesKey.get(internalFormStore, store)
       : undefined;
-  if (store.kind !== "value" || slot?.family !== "source") {
+  if (store.kind !== "value" || slot?.family !== "estimate") {
     throw new Error(
-      `Not an estimate field (at ${JSON.stringify(path)}) — setMode needs a field with a source envelope slot`,
+      `Not an estimate field (at ${JSON.stringify(path)}) — setMode needs a field with an estimate envelope slot`,
     );
   }
 
   batch(() => {
     untrack(() => {
       const live = slot.envelope.value;
-      if (resolveSourceMode(live, store.schema) === mode) {
+      if (resolveEstimateMode(live, store.schema) === mode) {
         return;
       }
 

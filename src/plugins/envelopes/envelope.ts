@@ -11,10 +11,10 @@ import type {
   EntryMode,
   EnvelopeSlot,
   EstimateEnvelope,
-  HybridEnvelope,
-  HybridSlot,
-  SourceMeta,
-  SourceSlot,
+  AmountOrPercentEnvelope,
+  AmountOrPercentSlot,
+  EstimateMeta,
+  EstimateSlot,
 } from "./types";
 import { envelopesWire } from "./wire";
 
@@ -22,7 +22,7 @@ import { envelopesWire } from "./wire";
  * Schema-declared opening mode for an unpinned estimate field.
  * `"formula"` → formula-first; `"estimate"` / missing → manual-first.
  */
-export function schemaDefaultSourceMode(
+export function schemaDefaultEstimateMode(
   schema: JsonSchema | undefined,
 ): DerivationMode {
   return schema?.["x-estimate-default-mode"] === "formula"
@@ -37,13 +37,13 @@ export function schemaDefaultSourceMode(
  *   - otherwise → `estimate` (manual-first, LOS-461: a stored unpinned
  *     value stays typeable so a schema default cannot clobber it)
  */
-export function resolveSourceMode(
-  meta: SourceMeta & { value?: unknown },
+export function resolveEstimateMode(
+  meta: EstimateMeta & { value?: unknown },
   schema?: JsonSchema,
 ): DerivationMode {
   if (meta.mode === "formula" || meta.mode === "estimate") return meta.mode;
   if (
-    schemaDefaultSourceMode(schema) === "formula" &&
+    schemaDefaultEstimateMode(schema) === "formula" &&
     isEmptyish(meta.value)
   ) {
     return "formula";
@@ -62,14 +62,14 @@ export function schemaDefaultEntryMode(
 }
 
 /**
- * Resolves persisted hybrid entry state:
+ * Resolves persisted amount-or-percent entry state:
  *   - an explicit `percent` / `amount` pin always wins
  *   - no pin + empty value + schema default `percent` → `percent` (LOS-824)
  *   - otherwise → `amount` (amount-first: a stored unpinned value stays
  *     dollars so imported/legacy amounts are not treated as percent-owned)
  * Percent basis falls back to the schema's declared default denominator.
  */
-export function resolveHybridEntry(
+export function resolveAmountOrPercentEntry(
   meta: EntryMeta,
   schema: InternalValueStore["schema"],
   value?: unknown,
@@ -111,32 +111,32 @@ function resolveEnvelopeValue(
  * one — encode must not fabricate `{ mode: "estimate" }` for a virgin
  * field.
  */
-export function decodeSourceEnvelope(
+export function decodeEstimateEnvelope(
   form: InternalFormStore,
   store: InternalValueStore,
   raw: unknown,
 ): EstimateEnvelope {
   const { value, meta } = envelopesWire.unwrap!(raw);
-  const sourceMeta = meta as SourceMeta;
+  const estimateMeta = meta as EstimateMeta;
   const envelope: EstimateEnvelope = {
     kind: "estimate",
     value: resolveEnvelopeValue(form, store, value),
   };
-  if (sourceMeta.mode === "formula" || sourceMeta.mode === "estimate") {
+  if (estimateMeta.mode === "formula" || estimateMeta.mode === "estimate") {
     return {
       ...envelope,
-      mode: sourceMeta.mode,
-      manualValue: sourceMeta.manualValue ?? null,
-      ...(sourceMeta.lastFlippedAt !== undefined
-        ? { lastFlippedAt: sourceMeta.lastFlippedAt }
+      mode: estimateMeta.mode,
+      manualValue: estimateMeta.manualValue ?? null,
+      ...(estimateMeta.lastFlippedAt !== undefined
+        ? { lastFlippedAt: estimateMeta.lastFlippedAt }
         : {}),
     };
   }
   return {
     ...envelope,
-    manualValue: sourceMeta.manualValue ?? null,
-    ...(sourceMeta.lastFlippedAt !== undefined
-      ? { lastFlippedAt: sourceMeta.lastFlippedAt }
+    manualValue: estimateMeta.manualValue ?? null,
+    ...(estimateMeta.lastFlippedAt !== undefined
+      ? { lastFlippedAt: estimateMeta.lastFlippedAt }
       : {}),
   };
 }
@@ -145,13 +145,13 @@ export function decodeSourceEnvelope(
  * Decodes one amount-or-percent field's raw into the in-memory envelope
  * with entry state already resolved against the schema default.
  */
-export function decodeHybridEnvelope(
+export function decodeAmountOrPercentEnvelope(
   form: InternalFormStore,
   store: InternalValueStore,
   raw: unknown,
-): HybridEnvelope {
+): AmountOrPercentEnvelope {
   const { value, meta } = envelopesWire.unwrap!(raw);
-  const { entryMode, percentBasis } = resolveHybridEntry(
+  const { entryMode, percentBasis } = resolveAmountOrPercentEntry(
     meta as EntryMeta,
     store.schema,
     value,
@@ -173,26 +173,26 @@ export function decodeHybridEnvelope(
 export function writeEnvelope(
   form: InternalFormStore,
   store: InternalValueStore,
-  slot: SourceSlot,
+  slot: EstimateSlot,
   next: EstimateEnvelope,
 ): void;
 export function writeEnvelope(
   form: InternalFormStore,
   store: InternalValueStore,
-  slot: HybridSlot,
-  next: HybridEnvelope,
+  slot: AmountOrPercentSlot,
+  next: AmountOrPercentEnvelope,
 ): void;
 export function writeEnvelope(
   form: InternalFormStore,
   store: InternalValueStore,
   slot: EnvelopeSlot,
-  next: EstimateEnvelope | HybridEnvelope,
+  next: EstimateEnvelope | AmountOrPercentEnvelope,
 ): void {
   const resolved = resolveEnvelopeValue(form, store, next.value);
-  if (slot.family === "source") {
+  if (slot.family === "estimate") {
     slot.envelope.value = { ...(next as EstimateEnvelope), value: resolved };
   } else {
-    slot.envelope.value = { ...(next as HybridEnvelope), value: resolved };
+    slot.envelope.value = { ...(next as AmountOrPercentEnvelope), value: resolved };
   }
   store.input.value = resolved;
   store.isDirty.value = !isSemanticEqual(resolved, store.startInput.value);
@@ -210,43 +210,43 @@ export function adoptEnvelope(
   schema?: JsonSchema,
 ): { live: EstimateEnvelope; start: EstimateEnvelope };
 export function adoptEnvelope(
-  live: HybridEnvelope,
-  start: HybridEnvelope,
-  incoming: HybridEnvelope,
+  live: AmountOrPercentEnvelope,
+  start: AmountOrPercentEnvelope,
+  incoming: AmountOrPercentEnvelope,
   schema?: JsonSchema,
-): { live: HybridEnvelope; start: HybridEnvelope };
+): { live: AmountOrPercentEnvelope; start: AmountOrPercentEnvelope };
 export function adoptEnvelope(
-  live: EstimateEnvelope | HybridEnvelope,
-  start: EstimateEnvelope | HybridEnvelope,
-  incoming: EstimateEnvelope | HybridEnvelope,
+  live: EstimateEnvelope | AmountOrPercentEnvelope,
+  start: EstimateEnvelope | AmountOrPercentEnvelope,
+  incoming: EstimateEnvelope | AmountOrPercentEnvelope,
   schema?: JsonSchema,
 ): {
-  live: EstimateEnvelope | HybridEnvelope;
-  start: EstimateEnvelope | HybridEnvelope;
+  live: EstimateEnvelope | AmountOrPercentEnvelope;
+  start: EstimateEnvelope | AmountOrPercentEnvelope;
 } {
   if (incoming.kind === "estimate") {
-    return adoptSource(
+    return adoptEstimate(
       live as EstimateEnvelope,
       start as EstimateEnvelope,
       incoming,
       schema,
     );
   }
-  return adoptHybrid(
-    live as HybridEnvelope,
-    start as HybridEnvelope,
+  return adoptAmountOrPercent(
+    live as AmountOrPercentEnvelope,
+    start as AmountOrPercentEnvelope,
     incoming,
   );
 }
 
-function adoptSource(
+function adoptEstimate(
   live: EstimateEnvelope,
   start: EstimateEnvelope,
   incoming: EstimateEnvelope,
   schema?: JsonSchema,
 ): { live: EstimateEnvelope; start: EstimateEnvelope } {
   const modeDirty =
-    resolveSourceMode(live, schema) !== resolveSourceMode(start, schema);
+    resolveEstimateMode(live, schema) !== resolveEstimateMode(start, schema);
   const valueDirty = !isSemanticEqual(live.value, start.value);
   return {
     start: incoming,
@@ -262,7 +262,7 @@ function adoptSource(
       ...(valueDirty
         ? {
             value: live.value,
-            ...(resolveSourceMode(live, schema) === "estimate"
+            ...(resolveEstimateMode(live, schema) === "estimate"
               ? { manualValue: live.manualValue }
               : {}),
           }
@@ -271,11 +271,11 @@ function adoptSource(
   };
 }
 
-function adoptHybrid(
-  live: HybridEnvelope,
-  start: HybridEnvelope,
-  incoming: HybridEnvelope,
-): { live: HybridEnvelope; start: HybridEnvelope } {
+function adoptAmountOrPercent(
+  live: AmountOrPercentEnvelope,
+  start: AmountOrPercentEnvelope,
+  incoming: AmountOrPercentEnvelope,
+): { live: AmountOrPercentEnvelope; start: AmountOrPercentEnvelope } {
   return {
     start: incoming,
     live: {
@@ -296,25 +296,25 @@ function adoptHybrid(
 export function bindAdopted(
   form: InternalFormStore,
   store: InternalValueStore,
-  slot: SourceSlot,
+  slot: EstimateSlot,
   adopted: { live: EstimateEnvelope; start: EstimateEnvelope },
 ): void;
 export function bindAdopted(
   form: InternalFormStore,
   store: InternalValueStore,
-  slot: HybridSlot,
-  adopted: { live: HybridEnvelope; start: HybridEnvelope },
+  slot: AmountOrPercentSlot,
+  adopted: { live: AmountOrPercentEnvelope; start: AmountOrPercentEnvelope },
 ): void;
 export function bindAdopted(
   form: InternalFormStore,
   store: InternalValueStore,
   slot: EnvelopeSlot,
   adopted: {
-    live: EstimateEnvelope | HybridEnvelope;
-    start: EstimateEnvelope | HybridEnvelope;
+    live: EstimateEnvelope | AmountOrPercentEnvelope;
+    start: EstimateEnvelope | AmountOrPercentEnvelope;
   },
 ): void {
-  if (slot.family === "source") {
+  if (slot.family === "estimate") {
     slot.startEnvelope.value = adopted.start as EstimateEnvelope;
     store.startInput.value = resolveEnvelopeValue(
       form,
@@ -324,30 +324,30 @@ export function bindAdopted(
     writeEnvelope(form, store, slot, adopted.live as EstimateEnvelope);
     return;
   }
-  slot.startEnvelope.value = adopted.start as HybridEnvelope;
+  slot.startEnvelope.value = adopted.start as AmountOrPercentEnvelope;
   store.startInput.value = resolveEnvelopeValue(
     form,
     store,
     adopted.start.value,
   );
-  writeEnvelope(form, store, slot, adopted.live as HybridEnvelope);
+  writeEnvelope(form, store, slot, adopted.live as AmountOrPercentEnvelope);
 }
 
 /**
  * Estimate keystroke: value (and, in estimate mode, `manualValue`) land
  * on the same envelope as the number.
  */
-export function syncSourceInput(
+export function syncEstimateInput(
   form: InternalFormStore,
   store: InternalValueStore,
-  slot: SourceSlot,
+  slot: EstimateSlot,
   input: unknown,
 ): void {
   const live = slot.envelope.value;
   writeEnvelope(form, store, slot, {
     ...live,
     value: input,
-    ...(resolveSourceMode(live, store.schema) === "estimate"
+    ...(resolveEstimateMode(live, store.schema) === "estimate"
       ? { manualValue: isEmptyish(input) ? null : input }
       : {}),
   });
@@ -356,10 +356,10 @@ export function syncSourceInput(
 /**
  * Amount-or-percent keystroke: value half only — entry state is untouched.
  */
-export function syncHybridInput(
+export function syncAmountOrPercentInput(
   form: InternalFormStore,
   store: InternalValueStore,
-  slot: HybridSlot,
+  slot: AmountOrPercentSlot,
   input: unknown,
 ): void {
   writeEnvelope(form, store, slot, {
