@@ -61,10 +61,13 @@ export default function Home() {
           {/* logo-screen.png = the painted logo with blacks crushed to true
               zero (JPEG block noise lifts under screen blending); the plate
               vanishes into the dark page, glows add light as painted. */}
-          {/* -mb pulls the demo card up under him: the artwork rides
-              centered in a square canvas, so ~30px of empty canvas hides
-              below his feet. */}
-          <div className="relative -mb-9">
+          {/* He perches ON the card: the pull overlaps his bottom rim
+              with the border, and the card sits ABOVE him (z-10 below) so
+              his halo clips behind the box instead of washing over it.
+              NO z-index on this wrapper: a z-indexed ancestor creates a
+              stacking context that traps mix-blend-mode and the black
+              plate reappears. */}
+          <div className="relative -mb-[52px]">
             {/* The black-crush that kills JPEG blocks also ate the painted
                 ambient halo — this radial puts it back behind him. */}
             <div
@@ -85,7 +88,9 @@ export default function Home() {
               style={{ mixBlendMode: "screen" }}
             />
           </div>
-          <HeroDemo />
+          <div className="relative z-10 w-full">
+            <HeroDemo />
+          </div>
         </div>
       </section>
 
