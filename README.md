@@ -160,28 +160,29 @@ formulas use to address the root record) and wires the dependency graph.
 
 ---
 
-## Where jsonisch sits — a deliberate "best of three"
+## Where jsonisch sits
 
-`jsonisch` is a synthesis of three lineages, picking one idea from each:
+Two libraries are real lineage — we read their source and took ideas from
+each deliberately:
 
-- **From react-jsonschema-form (and JSONForms)** — the founding move:
-  **JSON-Schema in, form out**, dispatched through a widget registry.
-  jsonisch keeps the move and sheds the era: no `uiSchema` side-channel
-  (UI hints ride on the schema node as `x-ui`), validation injected rather
-  than built in, and a fine-grained reactivity story that lineage never
-  had.
-- **From TanStack Form** — the **framework-agnostic core + thin adapters**
+- **TanStack Form** — the **framework-agnostic core + thin adapters**
   layout, and the **`createFormHook({ widgets })` composition/registry**
   pattern: register your design-system widgets once, get a typed
   `useAppForm` with them baked in.
-- **From Formisch** — **signals** as the reactivity engine (its own, no
-  external signal lib), so a keystroke re-renders only the fields that
-  depend on it.
+- **Formisch** — the **signal** reactivity model jsonisch's store is built
+  on (its own tiny signal implementation, no external lib): a keystroke
+  re-renders only the fields that depend on it.
 
-What's new here is the combination — plus one thing none of the three do:
-**derived values**. Formulas declared in the schema evaluate as computed
-signals through an injected calc engine, and their outputs are excluded
-from dirty-tracking and the submit payload *by construction*.
+One more deserves naming: **react-jsonschema-form** has been rendering
+forms from JSON-Schema since long before us. jsonisch is not derived from
+it — candidly, we didn't study it — the resemblance comes from sharing a
+premise, not code. What's visibly different from here: jsonisch is
+signal-reactive, ships no components of its own (your design system,
+dispatched by control kind), injects validation instead of bundling it,
+and evaluates schema-declared formulas as computed signals — **derived
+values**, excluded from dirty-tracking and the submit payload *by
+construction*. A careful comparison would make a good doc; we haven't
+written it.
 
 The re-render question — "when I type one character into a 60-field form,
 what re-renders?" — has a two-decade history that signals largely closed,
