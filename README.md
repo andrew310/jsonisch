@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/andrew310/jsonisch/main/assets/logo.jpg" width="220" alt="jsonisch — a database record between braces" />
+</p>
+
 # jsonisch
 
 > Schemas as values. A form library for apps where JSON-Schemas are **runtime
