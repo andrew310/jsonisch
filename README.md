@@ -1,8 +1,21 @@
-# @rwa/jsonisch
+# jsonisch
 
 > Schema in, reactive form out. A form library that **derives forms from JSON-Schema** — state, validation, derivation, dirty-tracking, and reconcile — driven by the schema itself, not a validation-library type.
 
-**Status: experimental.** v1a (core store) and v1b (React adapter + registry + AJV routing) are built and piloting on a single real surface. Not yet stable, not yet published.
+**Status: experimental.** The API is in production in one app. It is not frozen.
+
+```sh
+pnpm add jsonisch
+# npm install jsonisch
+# yarn add jsonisch
+```
+
+```ts
+import { createFormStore } from "jsonisch";
+import { createFormHook } from "jsonisch/react";
+```
+
+React is an optional peer. The core store is DOM-free. Formula evaluation is an injected `CalcEngine` — jsonisch does not bundle a formula language.
 
 ---
 
@@ -94,4 +107,4 @@ Deeper dives, with diagrams, live in [`docs/`](./docs):
 
 ## License / status
 
-Internal to the RWA platform for now; may be extracted and open-sourced. Nothing here is API-stable yet.
+MIT. Nothing here is API-stable yet.

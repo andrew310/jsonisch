@@ -1,9 +1,3 @@
-import {
-  evaluateFormula,
-  extractDependencies,
-  extractPathRefs,
-  parseFormula,
-} from "@rwa/formulas";
 import { describe, expect, test } from "vitest";
 
 import { setInput } from "../../methods/set-input";
@@ -21,16 +15,35 @@ import type {
 } from "../types";
 
 /**
- * The whole point of `CalcEngine`'s shape: the real `@rwa/formulas` exports
- * pass through without an adapter layer. If this object stops compiling,
- * the interface drifted from the engine — fix the interface.
+ * The whole point of `CalcEngine`'s shape: a real formula engine's exports
+ * pass through without an adapter layer. This suite is optional — jsonisch
+ * does not depend on any particular engine, and `@rwa/formulas` is not
+ * published with this package. The specifier is a runtime string so tsc
+ * does not require the module to be installed.
  */
-const engine: CalcEngine = {
-  parse: parseFormula,
-  evaluate: evaluateFormula,
-  extractDependencies,
-  extractPathRefs,
+type FormulasModule = {
+  parseFormula: CalcEngine["parse"];
+  evaluateFormula: CalcEngine["evaluate"];
+  extractDependencies: CalcEngine["extractDependencies"];
+  extractPathRefs: NonNullable<CalcEngine["extractPathRefs"]>;
 };
+
+let formulas: FormulasModule | null = null;
+try {
+  const spec = "@rwa/formulas";
+  formulas = (await import(spec)) as FormulasModule;
+} catch {
+  formulas = null;
+}
+
+const engine: CalcEngine | null = formulas
+  ? {
+      parse: formulas.parseFormula,
+      evaluate: formulas.evaluateFormula,
+      extractDependencies: formulas.extractDependencies,
+      extractPathRefs: formulas.extractPathRefs,
+    }
+  : null;
 
 /**
  * The derivation slot of the value field at `path` — the plugin owns
@@ -58,7 +71,7 @@ function formulaField(formula: string): JsonSchema {
   return { type: "number", "x-field-type": "calculated", "x-formula": formula };
 }
 
-describe("derivation with the real @rwa/formulas engine", () => {
+describe.skipIf(!engine)("derivation with the real @rwa/formulas engine", () => {
   test("should compute and chain plain arithmetic formulas", () => {
     const store = createFormStore({
       schema: objectSchema({
@@ -68,7 +81,7 @@ describe("derivation with the real @rwa/formulas engine", () => {
         contingency: formulaField("totalBudget * 0.1"),
       }),
       initialInput: { hardBudget: 100_000, softBudget: 50_000 },
-      plugins: testPlugins(engine),
+      plugins: testPlugins(engine!),
     });
     expect(derivedAt(store, ["totalBudget"]).value).toBe(150_000);
     expect(derivedAt(store, ["contingency"]).value).toBe(15_000);
@@ -88,7 +101,7 @@ describe("derivation with the real @rwa/formulas engine", () => {
           { id: "a2", aiv: 400_000 },
         ],
       },
-      plugins: testPlugins(engine),
+      plugins: testPlugins(engine!),
     });
     expect(derivedAt(store, ["totalAiv"]).value).toBe(1_000_000);
     expect(derivationSlotAt(store, ["totalAiv"])?.isRollup).toBe(true);
@@ -110,7 +123,7 @@ describe("derivation with the real @rwa/formulas engine", () => {
       }),
       initialInput: { total_loan_amount: 500_000 },
       offFormValues: { loan: { total_commitment: 600_000 } },
-      plugins: testPlugins(engine),
+      plugins: testPlugins(engine!),
     });
     expect(derivedAt(store, ["allocatedPercent"]).value).toBeCloseTo(0.8333, 4);
   });
@@ -127,7 +140,7 @@ describe("derivation with the real @rwa/formulas engine", () => {
       }),
       initialInput: { base: 10 },
       offFormValues: { assets: [{ id: "a1", aiv: 100 }] },
-      plugins: testPlugins(engine),
+      plugins: testPlugins(engine!),
     });
     const bad = getValueStore(store, ["bad"]);
     expect(derivedAt(store, ["bad"]).value).toBe(undefined);
@@ -157,7 +170,7 @@ describe("derivation with the real @rwa/formulas engine", () => {
         // resolves from the canonical row
         assets: [{ id: "a1", estimatedAiv: 1, liens: 50_000 }],
       },
-      plugins: testPlugins(engine),
+      plugins: testPlugins(engine!),
     });
     expect(
       derivedAt(store, ["assets", 0, "allocatedPercent"]).value,
@@ -181,7 +194,7 @@ describe("derivation with the real @rwa/formulas engine", () => {
       schema: objectSchema({
         bad: formulaField("1 +"),
       }),
-      plugins: testPlugins(engine),
+      plugins: testPlugins(engine!),
     });
     const bad = getValueStore(store, ["bad"]);
     expect(derivedAt(store, ["bad"]).value).toBe(undefined);
