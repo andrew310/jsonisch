@@ -46,10 +46,15 @@ export function HeroDemo() {
         <p className="text-muted-foreground mb-3 font-mono text-xs tracking-widest uppercase">
           the schema — runtime data
         </p>
-        <JsonPretty
-          value={heroSchema}
-          className="text-[11px] leading-relaxed"
-        />
+        {/* Clipped with a fade, not truncated: the schema shown is the real
+            value powering the form below; the playground shows all of it. */}
+        <div className="relative max-h-[210px] overflow-hidden">
+          <JsonPretty
+            value={heroSchema}
+            className="text-[11px] leading-relaxed"
+          />
+          <div className="from-card pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t to-transparent" />
+        </div>
       </div>
       <div className="px-5 py-4">
         <p className="text-muted-foreground mb-4 font-mono text-xs tracking-widest uppercase">

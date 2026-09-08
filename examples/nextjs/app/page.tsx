@@ -27,8 +27,10 @@ const highlights = [
 export default function Home() {
   return (
     <main>
-      <section className="mx-auto grid max-w-6xl items-start gap-12 px-6 pt-16 pb-20 lg:grid-cols-[1.1fr_1fr] lg:gap-16 lg:pt-24">
-        <div className="grid gap-6 lg:self-center">
+      {/* Copy stays top-aligned: the right column is tall, and centering
+          against it pushes the headline below a laptop fold. */}
+      <section className="mx-auto grid max-w-6xl items-start gap-12 px-6 pt-14 pb-20 lg:grid-cols-[1.1fr_1fr] lg:gap-16 lg:pt-16">
+        <div className="grid gap-6 lg:pt-10">
           <p className="text-muted-foreground font-mono text-sm">
             v0.1.1 · zero runtime dependencies · MIT
           </p>
@@ -55,15 +57,15 @@ export default function Home() {
             <CopyChip text="pnpm add jsonisch" />
           </div>
         </div>
-        <div className="grid justify-items-center gap-5">
+        <div className="grid justify-items-center gap-4">
           <Image
             src="/logo.jpg"
             alt="The jsonisch mascot: a red database record between a cyan open brace and a pink close brace"
-            width={132}
-            height={132}
+            width={88}
+            height={88}
             priority
-            className="rounded-2xl"
-            style={{ filter: "drop-shadow(0 0 32px var(--glow-red))" }}
+            className="rounded-xl"
+            style={{ filter: "drop-shadow(0 0 28px var(--glow-red))" }}
           />
           <HeroDemo />
         </div>
