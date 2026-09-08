@@ -8,7 +8,7 @@ import type { DerivationMode } from "../../core/types";
  * the mode actually changes. Server recompute may write a PARTIAL meta
  * (`{ mode: "formula" }` only) — every reader tolerates that.
  */
-export interface SourceMeta {
+export interface EstimateMeta {
   mode?: DerivationMode;
   manualValue?: unknown;
   lastFlippedAt?: string;
@@ -47,22 +47,22 @@ export interface EstimateEnvelope {
  * In-memory amount-or-percent envelope. `mode` / `basis` are resolved
  * (schema default applied) so dirty compare is `!==`, not re-defaulting.
  */
-export interface HybridEnvelope {
+export interface AmountOrPercentEnvelope {
   readonly kind: "amount-or-percent";
   readonly value?: unknown;
   readonly mode: EntryMode;
   readonly basis?: string;
 }
 
-export type Envelope = EstimateEnvelope | HybridEnvelope;
+export type Envelope = EstimateEnvelope | AmountOrPercentEnvelope;
 
 /**
- * The envelope slot of an estimate field (the `source` family). The mode
+ * The envelope slot of an estimate field (the `estimate` family). The mode
  * signal is a computed over `envelope.mode` — write via `setMode` (the
  * flip API), never by assigning `mode`.
  */
-export interface SourceSlot {
-  readonly family: "source";
+export interface EstimateSlot {
+  readonly family: "estimate";
   /**
    * Live envelope. Written only by `writeEnvelope`.
    */
@@ -104,20 +104,20 @@ export interface SourceSlot {
 }
 
 /**
- * The envelope slot of an amount-or-percent field (the `entry` family).
+ * The envelope slot of an amount-or-percent field (the `amount-or-percent` family).
  * Value edits never dirty the meta — only entry-state changes do.
  */
-export interface HybridSlot {
-  readonly family: "hybrid";
+export interface AmountOrPercentSlot {
+  readonly family: "amount-or-percent";
   /**
    * Live envelope. Written only by `writeEnvelope`.
    */
-  readonly envelope: Signal<HybridEnvelope>;
+  readonly envelope: Signal<AmountOrPercentEnvelope>;
   /**
    * Dirty baseline / reset target. Reassigned on rebase and on
    * `reset({ initialInput })`.
    */
-  readonly startEnvelope: Signal<HybridEnvelope>;
+  readonly startEnvelope: Signal<AmountOrPercentEnvelope>;
   /**
    * The current entry mode. An unpinned empty field follows
    * `x-hybrid-default-mode`; a stored unpinned value stays `amount`.
@@ -133,7 +133,7 @@ export interface HybridSlot {
    */
   readonly isDirty: ReadonlySignal<boolean>;
   /**
-   * The identity-stable react callbacks (see `SourceSlot.callbacks`).
+   * The identity-stable react callbacks (see `EstimateSlot.callbacks`).
    */
   callbacks?: {
     readonly setEntryMode: (mode: EntryMode) => void;
@@ -146,4 +146,4 @@ export interface HybridSlot {
  * dirty-tracked and serialized by the envelopes plugin, never rendered as
  * a field.
  */
-export type EnvelopeSlot = SourceSlot | HybridSlot;
+export type EnvelopeSlot = EstimateSlot | AmountOrPercentSlot;

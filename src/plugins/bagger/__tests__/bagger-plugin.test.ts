@@ -138,12 +138,12 @@ describe("bagger()", () => {
     expect(arv.isDirty.value).toBe(false);
 
     const slot = envelopesKey.get(form, arv);
-    expect(slot?.family === "source" && slot.mode.value).toBe("estimate");
+    expect(slot?.family === "estimate" && slot.mode.value).toBe("estimate");
 
     reset(form);
 
     expect(arv.kind === "value" && arv.input.value).toBe(900);
-    expect(slot?.family === "source" && slot.mode.value).toBe("estimate");
+    expect(slot?.family === "estimate" && slot.mode.value).toBe("estimate");
   });
 
   // Classification is stage-independent: the host passes the DATASET

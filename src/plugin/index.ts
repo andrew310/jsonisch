@@ -64,8 +64,8 @@ export {
 export { envelopesKey } from "../plugins/envelopes/key";
 export type {
   EnvelopeSlot,
-  HybridSlot,
-  SourceSlot,
+  AmountOrPercentSlot,
+  EstimateSlot,
 } from "../plugins/envelopes/types";
 export type { EnvelopeState } from "../plugins/envelopes/plugin";
 export { derivationKey } from "../plugins/derivation/key";

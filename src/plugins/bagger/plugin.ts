@@ -19,7 +19,7 @@
  * its two halves: the envelopes plugin already built this leaf's slot
  * (empty) from the row's OWN raw before bagger runs in the same
  * `buildScope` dispatch, so seeding writes through the SAME decode
- * (`decodeSourceEnvelope`/`decodeHybridEnvelope`) and the SAME sole
+ * (`decodeEstimateEnvelope`/`decodeAmountOrPercentEnvelope`) and the SAME sole
  * writer (`writeEnvelope`) the walk itself uses — never a hand-built
  * envelope object landing straight in `input`.
  */
@@ -27,8 +27,8 @@ import { PluginKey } from "../../core/plugin/key";
 import type { JsonischPlugin, PluginCtx } from "../../core/plugin/types";
 import type { InternalObjectStore, InternalValueStore } from "../../core/types";
 import {
-  decodeHybridEnvelope,
-  decodeSourceEnvelope,
+  decodeAmountOrPercentEnvelope,
+  decodeEstimateEnvelope,
   writeEnvelope,
 } from "../envelopes/envelope";
 import { envelopesKey } from "../envelopes/key";
@@ -91,7 +91,7 @@ function indexRows(
  * envelopes plugin's own slot, which the walk already built empty from
  * this row's OWN raw earlier in the same `buildScope` dispatch. Instead
  * this decodes through the plugin's own functions
- * (`decodeSourceEnvelope`/`decodeHybridEnvelope`) and writes through its
+ * (`decodeEstimateEnvelope`/`decodeAmountOrPercentEnvelope`) and writes through its
  * sole writer (`writeEnvelope`), plus reassigns `slot.startEnvelope` —
  * the same field `rebase`'s `bindAdopted` reassigns when adopting a new
  * baseline (`envelope.ts`) — so the meta half (mode, manualValue) seeds
@@ -110,14 +110,14 @@ function seedLeaf(
     return;
   }
 
-  if (slot.family === "source") {
-    const decoded = decodeSourceEnvelope(ctx.form, child, rawValue);
+  if (slot.family === "estimate") {
+    const decoded = decodeEstimateEnvelope(ctx.form, child, rawValue);
     slot.startEnvelope.value = decoded;
     child.startInput.value = decoded.value;
     child.initialInput.value = decoded.value;
     writeEnvelope(ctx.form, child, slot, decoded);
   } else {
-    const decoded = decodeHybridEnvelope(ctx.form, child, rawValue);
+    const decoded = decodeAmountOrPercentEnvelope(ctx.form, child, rawValue);
     slot.startEnvelope.value = decoded;
     child.startInput.value = decoded.value;
     child.initialInput.value = decoded.value;
@@ -155,7 +155,7 @@ function seedRow(
  * owns `offFormValues`, then seeds every relation row's declared keys from
  * its canonical row as an unedited baseline. Registration order:
  * `[envelopes(), bagger(record), derivation?, visibility()]` — envelopes
- * first so its slot already exists on every estimate/hybrid leaf by the
+ * first so its slot already exists on every estimate/amount-or-percent leaf by the
  * time seeding runs (`dependsOn: [envelopesKey]` enforces this at
  * `createFormStore`).
  */

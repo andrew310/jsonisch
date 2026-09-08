@@ -9,7 +9,7 @@ import { setInput } from "../../methods/set-input";
 import { setOffFormValues } from "../../methods/set-off-form-values";
 import { writeEnvelope } from "../../plugins/envelopes/envelope";
 import { envelopesKey } from "../../plugins/envelopes/key";
-import type { SourceSlot } from "../../plugins/envelopes/types";
+import type { EstimateSlot } from "../../plugins/envelopes/types";
 import { derivationKey } from "../../plugins/derivation/key";
 import type { DerivationSlot } from "../../plugins/derivation/key";
 import { resolveScopeValueAt } from "../../plugins/derivation/resolve-scope-value";
@@ -85,15 +85,15 @@ function derivedAt(form: InternalFormStore, path: Path): DerivedState {
 }
 
 /**
- * The envelopes plugin's source slot (the estimate mode signal lives
+ * The envelopes plugin's estimate slot (the estimate mode signal lives
  * there — derivation reads it through `envelopesKey`).
  */
-function sourceSlotAt(
+function estimateSlotAt(
   form: InternalFormStore,
   path: Path,
-): SourceSlot | undefined {
+): EstimateSlot | undefined {
   const slot = envelopesKey.get(form, getValueStore(form, path));
-  return slot?.family === "source" ? slot : undefined;
+  return slot?.family === "estimate" ? slot : undefined;
 }
 
 function formulaField(formula: string, extra?: JsonSchema): JsonSchema {
@@ -693,7 +693,7 @@ describe("derivation", () => {
         initialInput: { a: 10, fee: 1234 },
         plugins: testPlugins(makeEngine(exprs)),
       });
-      expect(sourceSlotAt(store, ["fee"])?.mode.value).toBe("estimate");
+      expect(estimateSlotAt(store, ["fee"])?.mode.value).toBe("estimate");
       expect(derivedAt(store, ["fee"])).toStrictEqual({ value: 1234, error: null });
 
       // A pinned field reads no deps — dep edits must not recompute it
@@ -718,7 +718,7 @@ describe("derivation", () => {
         initialInput: { a: 10 },
         plugins: testPlugins(makeEngine(exprs)),
       });
-      expect(sourceSlotAt(store, ["fee"])?.mode.value).toBe("estimate");
+      expect(estimateSlotAt(store, ["fee"])?.mode.value).toBe("estimate");
       expect(derivedAt(store, ["fee"])).toStrictEqual({ value: 20, error: null });
 
       // Typing a real estimate pins; clearing it un-pins again
@@ -741,7 +741,7 @@ describe("derivation", () => {
       // Derivation reads mode as a computed over envelope.mode — flip the
       // envelope (not a field-store member) and the pin follows
       const fee = getValueStore(store, ["fee"]);
-      const slot = sourceSlotAt(store, ["fee"])!;
+      const slot = estimateSlotAt(store, ["fee"])!;
       writeEnvelope(store, fee, slot, {
         ...slot.envelope.value,
         mode: "formula",
@@ -851,7 +851,7 @@ describe("derivation", () => {
       });
       const total = getValueStore(store, ["total"]);
       expect(derivationSlotAt(store, ["total"])).toBe(undefined);
-      expect(sourceSlotAt(store, ["total"])).toBe(undefined);
+      expect(estimateSlotAt(store, ["total"])).toBe(undefined);
       expect(total.input.value).toBe(9);
     });
 

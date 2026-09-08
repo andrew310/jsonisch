@@ -12,8 +12,8 @@ import { setMode } from "../../methods/set-mode";
 import { envelopesKey } from "../../plugins/envelopes/key";
 import type {
   EnvelopeSlot,
-  HybridSlot,
-  SourceSlot,
+  AmountOrPercentSlot,
+  EstimateSlot,
 } from "../../plugins/envelopes/types";
 import { envelopesWire } from "../../plugins/envelopes/wire";
 import { derivationKey } from "../../plugins/derivation/key";
@@ -62,7 +62,7 @@ function estimateField(formula: string, extra?: JsonSchema): JsonSchema {
   };
 }
 
-function hybridField(extra?: JsonSchema): JsonSchema {
+function amountOrPercentField(extra?: JsonSchema): JsonSchema {
   return { type: "string", "x-field-type": "hybrid", ...extra };
 }
 
@@ -81,18 +81,18 @@ function slotAt(
   return envelopesKey.get(form, getValueStore(form, path));
 }
 
-function sourceSlotAt(form: InternalFormStore, path: Path): SourceSlot {
+function estimateSlotAt(form: InternalFormStore, path: Path): EstimateSlot {
   const slot = slotAt(form, path);
-  if (slot?.family !== "source") {
-    throw new Error(`Expected a source slot at ${JSON.stringify(path)}`);
+  if (slot?.family !== "estimate") {
+    throw new Error(`Expected an estimate slot at ${JSON.stringify(path)}`);
   }
   return slot;
 }
 
-function hybridSlotAt(form: InternalFormStore, path: Path): HybridSlot {
+function amountOrPercentSlotAt(form: InternalFormStore, path: Path): AmountOrPercentSlot {
   const slot = slotAt(form, path);
-  if (slot?.family !== "hybrid") {
-    throw new Error(`Expected a hybrid slot at ${JSON.stringify(path)}`);
+  if (slot?.family !== "amount-or-percent") {
+    throw new Error(`Expected an amount-or-percent slot at ${JSON.stringify(path)}`);
   }
   return slot;
 }
@@ -118,7 +118,7 @@ function formulaValueAt(form: InternalFormStore, path: Path): DerivedState {
 const wire = [envelopesWire, derivationWire];
 
 describe("meta channel", () => {
-  describe("source envelope decode", () => {
+  describe("estimate envelope decode", () => {
     test("should reopen in formula mode from a calculated envelope even though a value is persisted", () => {
       // The v1c provisional gap: an accepted formula persists its
       // materialized result — value presence must not read as an estimate
@@ -132,7 +132,7 @@ describe("meta channel", () => {
           engine: makeEngine(doubleA()),
         },
       );
-      expect(sourceSlotAt(store, ["fee"]).mode.value).toBe("formula");
+      expect(estimateSlotAt(store, ["fee"]).mode.value).toBe("formula");
       expect(derivedAt(store, ["fee"])).toStrictEqual({ value: 20, error: null });
     });
 
@@ -147,7 +147,7 @@ describe("meta channel", () => {
           engine: makeEngine(doubleA()),
         },
       );
-      expect(sourceSlotAt(store, ["fee"]).mode.value).toBe("estimate");
+      expect(estimateSlotAt(store, ["fee"]).mode.value).toBe("estimate");
       expect(derivedAt(store, ["fee"])).toStrictEqual({
         value: 1234,
         error: null,
@@ -162,7 +162,7 @@ describe("meta channel", () => {
           engine: makeEngine(doubleA()),
         },
       );
-      expect(sourceSlotAt(store, ["fee"]).mode.value).toBe("estimate");
+      expect(estimateSlotAt(store, ["fee"]).mode.value).toBe("estimate");
     });
 
     test("should default to estimate mode without an envelope (manual-first)", () => {
@@ -177,13 +177,13 @@ describe("meta channel", () => {
         initialInput: { a: 10, fee: 7 },
         engine: makeEngine(doubleA()),
       });
-      expect(sourceSlotAt(withValue, ["fee"]).mode.value).toBe("estimate");
+      expect(estimateSlotAt(withValue, ["fee"]).mode.value).toBe("estimate");
 
       const empty = createTestStore(schema, {
         initialInput: { a: 10 },
         engine: makeEngine(doubleA()),
       });
-      expect(sourceSlotAt(empty, ["fee"]).mode.value).toBe("estimate");
+      expect(estimateSlotAt(empty, ["fee"]).mode.value).toBe("estimate");
     });
 
     test("should open an empty field in formula mode when the schema defaults to formula (LOS-823)", () => {
@@ -195,7 +195,7 @@ describe("meta channel", () => {
         initialInput: { a: 10 },
         engine: makeEngine(doubleA()),
       });
-      expect(sourceSlotAt(empty, ["fee"]).mode.value).toBe("formula");
+      expect(estimateSlotAt(empty, ["fee"]).mode.value).toBe("formula");
       expect(derivedAt(empty, ["fee"])).toStrictEqual({ value: 20, error: null });
       // Schema default is display-only: encode must not fabricate a pin
       expect(getDirtyInput(empty)).toBe(undefined);
@@ -210,7 +210,7 @@ describe("meta channel", () => {
         initialInput: { a: 10, fee: 7 },
         engine: makeEngine(doubleA()),
       });
-      expect(sourceSlotAt(withValue, ["fee"]).mode.value).toBe("estimate");
+      expect(estimateSlotAt(withValue, ["fee"]).mode.value).toBe("estimate");
       expect(derivedAt(withValue, ["fee"])).toStrictEqual({
         value: 7,
         error: null,
@@ -229,7 +229,7 @@ describe("meta channel", () => {
         },
         engine: makeEngine(doubleA()),
       });
-      expect(sourceSlotAt(pinned, ["fee"]).mode.value).toBe("estimate");
+      expect(estimateSlotAt(pinned, ["fee"]).mode.value).toBe("estimate");
     });
 
     test("should create the mode signal even without a calc engine", () => {
@@ -240,18 +240,18 @@ describe("meta channel", () => {
           initialInput: { fee: { kind: "estimate", value: 7, mode: "formula"  } },
         },
       );
-      expect(sourceSlotAt(store, ["fee"]).mode.value).toBe("formula");
+      expect(estimateSlotAt(store, ["fee"]).mode.value).toBe("formula");
       expect(
         derivationKey.get(store, getValueStore(store, ["fee"])),
       ).toBe(undefined);
     });
   });
 
-  describe("hybrid envelope decode", () => {
+  describe("amount-or-percent envelope decode", () => {
     test("should decode entry mode and percent basis from the envelope", () => {
       const store = createTestStore(
         objectSchema({
-          fee: hybridField({ "x-hybrid-default-denominator": "purchasePrice" }),
+          fee: amountOrPercentField({ "x-hybrid-default-denominator": "purchasePrice" }),
         }),
         {
           initialInput: {
@@ -264,7 +264,7 @@ describe("meta channel", () => {
           },
         },
       );
-      const slot = hybridSlotAt(store, ["fee"]);
+      const slot = amountOrPercentSlotAt(store, ["fee"]);
       expect(slot.entryMode.value).toBe("percent");
       expect(slot.percentBasis.value).toBe("totalCommitment");
     });
@@ -272,10 +272,10 @@ describe("meta channel", () => {
     test("should default to amount mode and the schema's default basis without an envelope", () => {
       const store = createTestStore(
         objectSchema({
-          fee: hybridField({ "x-hybrid-default-denominator": "purchasePrice" }),
+          fee: amountOrPercentField({ "x-hybrid-default-denominator": "purchasePrice" }),
         }),
       );
-      const slot = hybridSlotAt(store, ["fee"]);
+      const slot = amountOrPercentSlotAt(store, ["fee"]);
       expect(slot.entryMode.value).toBe("amount");
       expect(slot.percentBasis.value).toBe("purchasePrice");
       expect(slot.isDirty.value).toBe(false);
@@ -284,13 +284,13 @@ describe("meta channel", () => {
     test("should open an empty field in percent mode when the schema defaults to percent (LOS-824)", () => {
       const store = createTestStore(
         objectSchema({
-          fee: hybridField({
+          fee: amountOrPercentField({
             "x-hybrid-default-denominator": "purchasePrice",
             "x-hybrid-default-mode": "percent",
           }),
         }),
       );
-      const slot = hybridSlotAt(store, ["fee"]);
+      const slot = amountOrPercentSlotAt(store, ["fee"]);
       expect(slot.entryMode.value).toBe("percent");
       expect(slot.percentBasis.value).toBe("purchasePrice");
       expect(slot.isDirty.value).toBe(false);
@@ -301,17 +301,17 @@ describe("meta channel", () => {
     test("should keep a stored unpinned value in amount mode even when the schema defaults to percent (LOS-824)", () => {
       const store = createTestStore(
         objectSchema({
-          fee: hybridField({ "x-hybrid-default-mode": "percent" }),
+          fee: amountOrPercentField({ "x-hybrid-default-mode": "percent" }),
         }),
         { initialInput: { fee: "5000" } },
       );
-      expect(hybridSlotAt(store, ["fee"]).entryMode.value).toBe("amount");
+      expect(amountOrPercentSlotAt(store, ["fee"]).entryMode.value).toBe("amount");
     });
 
     test("should honor a persisted pin over the schema default (LOS-824)", () => {
       const store = createTestStore(
         objectSchema({
-          fee: hybridField({ "x-hybrid-default-mode": "percent" }),
+          fee: amountOrPercentField({ "x-hybrid-default-mode": "percent" }),
         }),
         {
           initialInput: {
@@ -323,7 +323,7 @@ describe("meta channel", () => {
           },
         },
       );
-      expect(hybridSlotAt(store, ["fee"]).entryMode.value).toBe("amount");
+      expect(amountOrPercentSlotAt(store, ["fee"]).entryMode.value).toBe("amount");
     });
   });
 
@@ -331,7 +331,7 @@ describe("meta channel", () => {
     const schema = objectSchema({
       price: { type: "number" },
       fee: estimateField("double"),
-      points: hybridField(),
+      points: amountOrPercentField(),
     });
 
     test("should split one envelope into the value leaf and the plugin's meta half", () => {
@@ -365,13 +365,13 @@ describe("meta channel", () => {
         points: "100",
       });
       // …and the meta half landed on the plugin's slots
-      expect(sourceSlotAt(store, ["fee"]).startEnvelope.value).toStrictEqual({
+      expect(estimateSlotAt(store, ["fee"]).startEnvelope.value).toStrictEqual({
         kind: "estimate",
         value: 5,
         mode: "estimate",
         manualValue: "5",
       });
-      const points = hybridSlotAt(store, ["points"]);
+      const points = amountOrPercentSlotAt(store, ["points"]);
       expect(points.entryMode.value).toBe("percent");
       expect(points.percentBasis.value).toBe("price");
     });
@@ -379,7 +379,7 @@ describe("meta channel", () => {
     test("should decode a bare (non-envelope) raw defensively", () => {
       const store = createTestStore(schema, { initialInput: { fee: 5 } });
       expect(getValueStore(store, ["fee"]).input.value).toBe(5);
-      const slot = sourceSlotAt(store, ["fee"]);
+      const slot = estimateSlotAt(store, ["fee"]);
       expect(slot.mode.value).toBe("estimate");
       expect(slot.startEnvelope.value).toStrictEqual({
         kind: "estimate",
@@ -406,8 +406,8 @@ describe("meta channel", () => {
           { envelopes: envelopeContracts([envelopesWire]) },
         ),
       });
-      expect(sourceSlotAt(store, ["fee"]).mode.value).toBe("estimate");
-      expect(hybridSlotAt(store, ["points"]).entryMode.value).toBe("amount");
+      expect(estimateSlotAt(store, ["fee"]).mode.value).toBe("estimate");
+      expect(amountOrPercentSlotAt(store, ["points"]).entryMode.value).toBe("amount");
     });
   });
 
@@ -424,7 +424,7 @@ describe("meta channel", () => {
         },
       );
       setInput(store, ["fee"], "1500");
-      expect(sourceSlotAt(store, ["fee"]).envelope.value.value).toBe("1500");
+      expect(estimateSlotAt(store, ["fee"]).envelope.value.value).toBe("1500");
       expect(getDirtyInput(store)).toStrictEqual({
         fee: { kind: "estimate", value: "1500", mode: "estimate", manualValue: "1500"  },
       });
@@ -487,7 +487,7 @@ describe("meta channel", () => {
     test("should always emit an amount-or-percent envelope COMPLETE", () => {
       const store = createTestStore(
         objectSchema({
-          points: hybridField({ "x-hybrid-default-denominator": "purchasePrice" }),
+          points: amountOrPercentField({ "x-hybrid-default-denominator": "purchasePrice" }),
         }),
         { initialInput: { points: "5000" } },
       );
@@ -495,7 +495,7 @@ describe("meta channel", () => {
       // one bag key, so the entry state rides along or a partial write would
       // clobber it
       setInput(store, ["points"], "6000");
-      expect(hybridSlotAt(store, ["points"]).isDirty.value).toBe(false);
+      expect(amountOrPercentSlotAt(store, ["points"]).isDirty.value).toBe(false);
       expect(getDirtyInput(store)).toStrictEqual({
         points: {
           kind: "amount-or-percent",
@@ -520,14 +520,14 @@ describe("meta channel", () => {
     test("should pin percent when a schema-default-percent field is typed (LOS-824)", () => {
       const store = createTestStore(
         objectSchema({
-          points: hybridField({
+          points: amountOrPercentField({
             "x-hybrid-default-denominator": "purchasePrice",
             "x-hybrid-default-mode": "percent",
           }),
         }),
       );
       setInput(store, ["points"], "6000");
-      expect(hybridSlotAt(store, ["points"]).entryMode.value).toBe("percent");
+      expect(amountOrPercentSlotAt(store, ["points"]).entryMode.value).toBe("percent");
       expect(getDirtyInput(store)).toStrictEqual({
         points: {
           kind: "amount-or-percent",
@@ -629,7 +629,7 @@ describe("meta channel", () => {
       // The derived value is never written into the input
       expect(fee.input.value).toBe(1234);
       expect(fee.isDirty.value).toBe(false);
-      expect(sourceSlotAt(store, ["fee"]).isDirty.value).toBe(true);
+      expect(estimateSlotAt(store, ["fee"]).isDirty.value).toBe(true);
     });
 
     test("formula→estimate should seed the manual value from the last formula result", () => {
@@ -646,7 +646,7 @@ describe("meta channel", () => {
       const fee = getValueStore(store, ["fee"]);
       setMode(store, ["fee"], "estimate", { now: "T1" });
 
-      expect(sourceSlotAt(store, ["fee"]).mode.value).toBe("estimate");
+      expect(estimateSlotAt(store, ["fee"]).mode.value).toBe("estimate");
       // Seeded like a real edit: value dirty, the envelope carries both halves
       expect(fee.input.value).toBe(20);
       expect(fee.isDirty.value).toBe(true);
@@ -685,13 +685,13 @@ describe("meta channel", () => {
           engine: makeEngine(doubleA()),
         },
       );
-      expect(sourceSlotAt(store, ["fee"]).mode.value).toBe("formula");
+      expect(estimateSlotAt(store, ["fee"]).mode.value).toBe("formula");
       setMode(store, ["fee"], "formula", { now: "T0" });
-      expect(sourceSlotAt(store, ["fee"]).isDirty.value).toBe(false);
+      expect(estimateSlotAt(store, ["fee"]).isDirty.value).toBe(false);
 
       setMode(store, ["fee"], "estimate", { now: "T1" });
-      expect(sourceSlotAt(store, ["fee"]).mode.value).toBe("estimate");
-      expect(sourceSlotAt(store, ["fee"]).isDirty.value).toBe(true);
+      expect(estimateSlotAt(store, ["fee"]).mode.value).toBe("estimate");
+      expect(estimateSlotAt(store, ["fee"]).isDirty.value).toBe(true);
       expect(getDirtyInput(store)).toMatchObject({
         fee: { kind: "estimate", mode: "estimate", lastFlippedAt: "T1" },
       });
@@ -709,7 +709,7 @@ describe("meta channel", () => {
         },
       );
       setMode(store, ["fee"], "estimate", { now: "T1" });
-      expect(sourceSlotAt(store, ["fee"]).isDirty.value).toBe(false);
+      expect(estimateSlotAt(store, ["fee"]).isDirty.value).toBe(false);
       expect(getDirtyInput(store)).toBe(undefined);
 
       expect(() => setMode(store, ["a"], "formula")).toThrow(/estimate field/);
@@ -780,7 +780,7 @@ describe("meta channel", () => {
         engine: makeEngine(doubleA()),
       });
 
-      expect(sourceSlotAt(store, ["rows", 0, "fee"]).mode.value).toBe("formula");
+      expect(estimateSlotAt(store, ["rows", 0, "fee"]).mode.value).toBe("formula");
       // The meta half was built BEFORE the row's derivation graph, so the
       // pin holds
       expect(derivedAt(store, ["rows", 0, "fee"])).toStrictEqual({
@@ -788,7 +788,7 @@ describe("meta channel", () => {
         error: null,
       });
 
-      expect(sourceSlotAt(store, ["rows", 1, "fee"]).mode.value).toBe("estimate");
+      expect(estimateSlotAt(store, ["rows", 1, "fee"]).mode.value).toBe("estimate");
       expect(derivedAt(store, ["rows", 1, "fee"])).toStrictEqual({
         value: 7,
         error: null,
@@ -803,9 +803,9 @@ describe("meta channel", () => {
         },
         engine: makeEngine(doubleA()),
       });
-      expect(sourceSlotAt(store, ["rows", 0, "fee"]).mode.value).toBe("estimate");
+      expect(estimateSlotAt(store, ["rows", 0, "fee"]).mode.value).toBe("estimate");
       // An EMPTY estimate still falls through to the formula (LOS-515)
-      expect(sourceSlotAt(store, ["rows", 1, "fee"]).mode.value).toBe("estimate");
+      expect(estimateSlotAt(store, ["rows", 1, "fee"]).mode.value).toBe("estimate");
       expect(derivedAt(store, ["rows", 1, "fee"])).toStrictEqual({
         value: 8,
         error: null,
@@ -819,7 +819,7 @@ describe("meta channel", () => {
             type: "array",
             items: objectSchema({
               id: { type: "string" },
-              points: hybridField({
+              points: amountOrPercentField({
                 "x-hybrid-default-denominator": "purchasePrice",
               }),
             }),
@@ -841,7 +841,7 @@ describe("meta channel", () => {
           },
         },
       );
-      const slot = hybridSlotAt(store, ["rows", 0, "points"]);
+      const slot = amountOrPercentSlotAt(store, ["rows", 0, "points"]);
       expect(slot.entryMode.value).toBe("percent");
       expect(slot.percentBasis.value).toBe("rowBudget");
     });
@@ -859,13 +859,13 @@ describe("meta channel", () => {
       const fee = getValueStore(store, ["rows", 0, "fee"]);
 
       setMode(store, ["rows", 0, "fee"], "estimate", { now: "T1" });
-      expect(sourceSlotAt(store, ["rows", 0, "fee"]).mode.value).toBe("estimate");
+      expect(estimateSlotAt(store, ["rows", 0, "fee"]).mode.value).toBe("estimate");
       // Seeded from the ROW's own `a` (10), not the document's (1)
       expect(fee.input.value).toBe(20);
       expect(fee.isDirty.value).toBe(true);
 
       setMode(store, ["rows", 0, "fee"], "formula", { now: "T2" });
-      const slot = sourceSlotAt(store, ["rows", 0, "fee"]);
+      const slot = estimateSlotAt(store, ["rows", 0, "fee"]);
       expect(slot.mode.value).toBe("formula");
       // The estimate typed this session is preserved as the manual value
       expect(slot.manualValue.value).toBe(20);
@@ -1009,7 +1009,7 @@ describe("meta channel", () => {
 
       reset(store);
 
-      const slot = sourceSlotAt(store, ["rows", 0, "fee"]);
+      const slot = estimateSlotAt(store, ["rows", 0, "fee"]);
       expect(slot.mode.value).toBe("estimate");
       expect(slot.isDirty.value).toBe(false);
       expect(getDirtyInput(store)).toBe(undefined);
@@ -1040,16 +1040,16 @@ describe("meta channel", () => {
       });
 
       // Clean row adopts the server's mode
-      expect(sourceSlotAt(store, ["rows", 0, "fee"]).mode.value).toBe("formula");
+      expect(estimateSlotAt(store, ["rows", 0, "fee"]).mode.value).toBe("formula");
       // Flipped row keeps the user's in-flight flip
-      const flipped = sourceSlotAt(store, ["rows", 1, "fee"]);
+      const flipped = estimateSlotAt(store, ["rows", 1, "fee"]);
       expect(flipped.mode.value).toBe("formula");
       expect(flipped.isDirty.value).toBe(true);
 
       // A later reset returns to the NEW baseline
       reset(store);
-      expect(sourceSlotAt(store, ["rows", 0, "fee"]).mode.value).toBe("formula");
-      expect(sourceSlotAt(store, ["rows", 1, "fee"]).mode.value).toBe("estimate");
+      expect(estimateSlotAt(store, ["rows", 0, "fee"]).mode.value).toBe("formula");
+      expect(estimateSlotAt(store, ["rows", 1, "fee"]).mode.value).toBe("estimate");
     });
 
     test("a row inserted after store init should get its meta channel", () => {
@@ -1064,7 +1064,7 @@ describe("meta channel", () => {
           fee: { kind: "estimate", value: 9, mode: "formula"  },
         },
       });
-      expect(sourceSlotAt(store, ["rows", 0, "fee"]).mode.value).toBe("formula");
+      expect(estimateSlotAt(store, ["rows", 0, "fee"]).mode.value).toBe("formula");
       expect(derivedAt(store, ["rows", 0, "fee"])).toStrictEqual({
         value: 8,
         error: null,
@@ -1072,7 +1072,7 @@ describe("meta channel", () => {
       expect(() =>
         setMode(store, ["rows", 0, "fee"], "estimate", { now: "T1" }),
       ).not.toThrow();
-      expect(sourceSlotAt(store, ["rows", 0, "fee"]).mode.value).toBe("estimate");
+      expect(estimateSlotAt(store, ["rows", 0, "fee"]).mode.value).toBe("estimate");
     });
 
     test("a swapped pair should exchange their modes", () => {
@@ -1087,13 +1087,13 @@ describe("meta channel", () => {
         engine: makeEngine(doubleA()),
       });
       swap(store, ["rows"], 0, 1);
-      expect(sourceSlotAt(store, ["rows", 0, "fee"]).mode.value).toBe("estimate");
-      expect(sourceSlotAt(store, ["rows", 1, "fee"]).mode.value).toBe("formula");
+      expect(estimateSlotAt(store, ["rows", 0, "fee"]).mode.value).toBe("estimate");
+      expect(estimateSlotAt(store, ["rows", 1, "fee"]).mode.value).toBe("formula");
 
       // Swapping back returns every slot to its decode baseline — clean
       swap(store, ["rows"], 0, 1);
-      expect(sourceSlotAt(store, ["rows", 0, "fee"]).mode.value).toBe("formula");
-      expect(sourceSlotAt(store, ["rows", 1, "fee"]).isDirty.value).toBe(false);
+      expect(estimateSlotAt(store, ["rows", 0, "fee"]).mode.value).toBe("formula");
+      expect(estimateSlotAt(store, ["rows", 1, "fee"]).isDirty.value).toBe(false);
     });
 
     test("a removed row should shift the surviving rows' modes down", () => {
@@ -1108,7 +1108,7 @@ describe("meta channel", () => {
         engine: makeEngine(doubleA()),
       });
       remove(store, ["rows"], 0);
-      expect(sourceSlotAt(store, ["rows", 0, "fee"]).mode.value).toBe("formula");
+      expect(estimateSlotAt(store, ["rows", 0, "fee"]).mode.value).toBe("formula");
     });
 
     test("a plugin-dirty unmatched row is kept after the server prefix", () => {
@@ -1135,10 +1135,10 @@ describe("meta channel", () => {
         { id: "r1", a: 10, fee: 1 },
         { id: "r2", a: 20, fee: 2 },
       ]);
-      expect(sourceSlotAt(store, ["rows", 0, "fee"]).mode.value).toBe(
+      expect(estimateSlotAt(store, ["rows", 0, "fee"]).mode.value).toBe(
         "estimate",
       );
-      const kept = sourceSlotAt(store, ["rows", 1, "fee"]);
+      const kept = estimateSlotAt(store, ["rows", 1, "fee"]);
       expect(kept.mode.value).toBe("formula");
       expect(kept.isDirty.value).toBe(true);
       expect(store.aggregates.isDirty.value).toBe(true);
@@ -1157,8 +1157,8 @@ describe("meta channel", () => {
         engine: makeEngine(doubleA()),
       });
       move(store, ["rows"], 0, 1);
-      expect(sourceSlotAt(store, ["rows", 0, "fee"]).mode.value).toBe("estimate");
-      expect(sourceSlotAt(store, ["rows", 1, "fee"]).mode.value).toBe("formula");
+      expect(estimateSlotAt(store, ["rows", 0, "fee"]).mode.value).toBe("estimate");
+      expect(estimateSlotAt(store, ["rows", 1, "fee"]).mode.value).toBe("formula");
     });
   });
 
@@ -1168,7 +1168,7 @@ describe("meta channel", () => {
         objectSchema({
           a: { type: "number" },
           fee: estimateField("double"),
-          points: hybridField({ "x-hybrid-default-denominator": "purchasePrice" }),
+          points: amountOrPercentField({ "x-hybrid-default-denominator": "purchasePrice" }),
         }),
         {
           initialInput: {
@@ -1185,8 +1185,8 @@ describe("meta channel", () => {
 
       reset(store);
 
-      const fee = sourceSlotAt(store, ["fee"]);
-      const points = hybridSlotAt(store, ["points"]);
+      const fee = estimateSlotAt(store, ["fee"]);
+      const points = amountOrPercentSlotAt(store, ["points"]);
       expect(fee.mode.value).toBe("estimate");
       expect(fee.isDirty.value).toBe(false);
       expect(fee.lastFlippedAt.value).toBe(undefined);
@@ -1218,10 +1218,10 @@ describe("meta channel", () => {
       // stays scoped for free
       reset(store, { path: ["fee"] });
 
-      expect(sourceSlotAt(store, ["fee"]).mode.value).toBe("estimate");
-      expect(sourceSlotAt(store, ["fee"]).isDirty.value).toBe(false);
-      expect(sourceSlotAt(store, ["other"]).mode.value).toBe("formula");
-      expect(sourceSlotAt(store, ["other"]).isDirty.value).toBe(true);
+      expect(estimateSlotAt(store, ["fee"]).mode.value).toBe("estimate");
+      expect(estimateSlotAt(store, ["fee"]).isDirty.value).toBe(false);
+      expect(estimateSlotAt(store, ["other"]).mode.value).toBe("formula");
+      expect(estimateSlotAt(store, ["other"]).isDirty.value).toBe(true);
     });
   });
 });

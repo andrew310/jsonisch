@@ -294,7 +294,7 @@ function wireFormulaGraph(
       store.control === "estimate"
         ? computed<DerivedState>(() => {
             const envelope = envelopesKey.get(form, store);
-            return envelope?.family === "source" &&
+            return envelope?.family === "estimate" &&
               envelope.mode.value === "estimate" &&
               !isEmptyish(store.input.value)
               ? { value: store.input.value, error: null }

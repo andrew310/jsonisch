@@ -3,16 +3,16 @@ import { batch, untrack } from "../core/framework";
 import type { InternalFormStore, InternalValueStore, Path } from "../core/types";
 import { writeEnvelope } from "../plugins/envelopes/envelope";
 import { envelopesKey } from "../plugins/envelopes/key";
-import type { EntryMode, HybridSlot } from "../plugins/envelopes/types";
+import type { EntryMode, AmountOrPercentSlot } from "../plugins/envelopes/types";
 import { type FormRef, internalOf } from "./form-ref";
 
-function hybridOf(
+function amountOrPercentOf(
   form: FormRef,
   path: Path,
 ): {
   form: InternalFormStore;
   store: InternalValueStore;
-  slot: HybridSlot;
+  slot: AmountOrPercentSlot;
 } {
   const internalFormStore = internalOf(form);
   const store = getFieldStore(internalFormStore, path);
@@ -20,9 +20,9 @@ function hybridOf(
     store.kind === "value"
       ? envelopesKey.get(internalFormStore, store)
       : undefined;
-  if (store.kind !== "value" || slot?.family !== "hybrid") {
+  if (store.kind !== "value" || slot?.family !== "amount-or-percent") {
     throw new Error(
-      `Not an amount-or-percent field (at ${JSON.stringify(path)}) — needs a field with a hybrid envelope slot`,
+      `Not an amount-or-percent field (at ${JSON.stringify(path)}) — needs a field with an amount-or-percent envelope slot`,
     );
   }
   return { form: internalFormStore, store, slot };
@@ -39,7 +39,7 @@ function hybridOf(
  * @param mode The entry mode.
  */
 export function setEntryMode(form: FormRef, path: Path, mode: EntryMode): void {
-  const target = hybridOf(form, path);
+  const target = amountOrPercentOf(form, path);
   batch(() => {
     untrack(() => {
       writeEnvelope(target.form, target.store, target.slot, {
@@ -64,7 +64,7 @@ export function setPercentBasis(
   path: Path,
   percentBasis: string,
 ): void {
-  const target = hybridOf(form, path);
+  const target = amountOrPercentOf(form, path);
   batch(() => {
     untrack(() => {
       writeEnvelope(target.form, target.store, target.slot, {

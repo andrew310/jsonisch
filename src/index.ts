@@ -103,7 +103,7 @@ export {
   envelopesWire,
   isEnvelope,
   wrapEstimate,
-  wrapHybrid,
+  wrapAmountOrPercent,
 } from "./plugins/envelopes/wire";
 export type { EnvelopeKind } from "./plugins/envelopes/wire";
 export type {
@@ -111,8 +111,8 @@ export type {
   EntryMode,
   Envelope,
   EstimateEnvelope,
-  HybridEnvelope,
-  SourceMeta,
+  AmountOrPercentEnvelope,
+  EstimateMeta,
 } from "./plugins/envelopes/types";
 export { derivation } from "./plugins/derivation/plugin";
 export { derivationWire } from "./plugins/derivation/wire";

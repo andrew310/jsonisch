@@ -14,7 +14,7 @@ import {
   staticValidator,
 } from "../../core/vitest/utils";
 import { envelopesKey } from "../../plugins/envelopes/key";
-import type { HybridSlot, SourceSlot } from "../../plugins/envelopes/types";
+import type { AmountOrPercentSlot, EstimateSlot } from "../../plugins/envelopes/types";
 import type { InternalFormStore, Path } from "../../core/types";
 import { applyBaseline } from "../apply-baseline";
 import { insert, remove } from "../array-ops";
@@ -391,15 +391,15 @@ describe("applyBaseline", () => {
       return envelopesKey.get(form, getValueStore(form, path));
     }
 
-    function sourceSlotAt(form: InternalFormStore, path: Path): SourceSlot {
+    function estimateSlotAt(form: InternalFormStore, path: Path): EstimateSlot {
       const slot = slotAt(form, path);
-      if (slot?.family !== "source") throw new Error("Expected a source slot");
+      if (slot?.family !== "estimate") throw new Error("Expected an estimate slot");
       return slot;
     }
 
-    function hybridSlotAt(form: InternalFormStore, path: Path): HybridSlot {
+    function amountOrPercentSlotAt(form: InternalFormStore, path: Path): AmountOrPercentSlot {
       const slot = slotAt(form, path);
-      if (slot?.family !== "hybrid") throw new Error("Expected a hybrid slot");
+      if (slot?.family !== "amount-or-percent") throw new Error("Expected an amount-or-percent slot");
       return slot;
     }
 
@@ -409,13 +409,13 @@ describe("applyBaseline", () => {
           price: { kind: "estimate", value: 10, mode: "estimate", manualValue: 10  },
         },
       });
-      expect(sourceSlotAt(store, ["price"]).mode.value).toBe("estimate");
+      expect(estimateSlotAt(store, ["price"]).mode.value).toBe("estimate");
 
       applyBaseline(store, {
         data: { price: { kind: "estimate", value: 42, mode: "formula"  } },
       });
 
-      const price = sourceSlotAt(store, ["price"]);
+      const price = estimateSlotAt(store, ["price"]);
       expect(price.mode.value).toBe("formula");
       expect(price.startEnvelope.value.mode).toBe("formula");
       // The value half of the same envelope rebased the field's input
@@ -429,14 +429,14 @@ describe("applyBaseline", () => {
         },
       });
       setMode(store, ["price"], "formula", { now: "2026-08-04T00:00:00Z" });
-      expect(sourceSlotAt(store, ["price"]).isDirty.value).toBe(true);
+      expect(estimateSlotAt(store, ["price"]).isDirty.value).toBe(true);
 
       // The post-save echo persisted the flip
       applyBaseline(store, {
         data: { price: { kind: "estimate", value: 42, mode: "formula"  } },
       });
 
-      const price = sourceSlotAt(store, ["price"]);
+      const price = estimateSlotAt(store, ["price"]);
       expect(price.mode.value).toBe("formula");
       expect(price.isDirty.value).toBe(false);
     });
@@ -455,7 +455,7 @@ describe("applyBaseline", () => {
         },
       });
 
-      const price = sourceSlotAt(store, ["price"]);
+      const price = estimateSlotAt(store, ["price"]);
       expect(price.mode.value).toBe("formula");
       expect(price.startEnvelope.value.mode).toBe("estimate");
       expect(price.isDirty.value).toBe(true);
@@ -463,7 +463,7 @@ describe("applyBaseline", () => {
       expect(getValueStore(store, ["price"]).input.value).toBe(42);
     });
 
-    test("should rebase hybrid entry state per signal", () => {
+    test("should rebase amount-or-percent entry state per signal", () => {
       const store = createTestStore(
         objectSchema({
           fee: { type: "number", "x-field-type": "hybrid" },
@@ -482,7 +482,7 @@ describe("applyBaseline", () => {
         },
       });
 
-      const fee = hybridSlotAt(store, ["fee"]);
+      const fee = amountOrPercentSlotAt(store, ["fee"]);
       // The user's entry-mode flip matches the fresh envelope → clean
       expect(fee.entryMode.value).toBe("percent");
       expect(fee.startEnvelope.value.mode).toBe("percent");

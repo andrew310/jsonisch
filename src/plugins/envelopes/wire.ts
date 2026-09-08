@@ -1,6 +1,6 @@
 import type { WireContract, WireEnvelope } from "../../core/plugin/types";
 import { readOwn } from "../../core/schema-utils";
-import type { EntryMeta, SourceMeta } from "./types";
+import type { EntryMeta, EstimateMeta } from "./types";
 
 /** Discriminator of a persisted estimate / amount-or-percent envelope. */
 export type EnvelopeKind = "estimate" | "amount-or-percent";
@@ -32,7 +32,7 @@ function metaOf(raw: Record<string, unknown>): Record<string, unknown> {
  * `{ kind: "estimate", mode: "formula" }` and lets the server recompute
  * author the value half).
  */
-export function wrapEstimate(value: unknown, meta: SourceMeta): unknown {
+export function wrapEstimate(value: unknown, meta: EstimateMeta): unknown {
   const envelope: Record<string, unknown> = { kind: "estimate", ...meta };
   if (value !== undefined) envelope.value = value;
   return envelope;
@@ -43,7 +43,7 @@ export function wrapEstimate(value: unknown, meta: SourceMeta): unknown {
  * complete — an envelope is one bag key, so a partial write would clobber
  * the persisted other half.
  */
-export function wrapHybrid(value: unknown, meta: EntryMeta): unknown {
+export function wrapAmountOrPercent(value: unknown, meta: EntryMeta): unknown {
   return { kind: "amount-or-percent", value, ...meta };
 }
 
@@ -85,6 +85,6 @@ export const envelopesWire: WireContract = {
     if (!isEnvelope(raw)) return undefined;
     const meta = metaOf(raw);
     if (meta.mode === "estimate") return raw;
-    return wrapEstimate(undefined, meta as SourceMeta);
+    return wrapEstimate(undefined, meta as EstimateMeta);
   },
 };

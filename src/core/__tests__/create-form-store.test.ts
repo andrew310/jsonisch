@@ -442,7 +442,7 @@ describe("createFormStore", () => {
       // registered
       expect(
         envelopesKey.get(store, getValueStore(store, ["fee"]))?.family,
-      ).toBe("source");
+      ).toBe("estimate");
     });
 
     test("should build no plugin state at all without plugins", () => {

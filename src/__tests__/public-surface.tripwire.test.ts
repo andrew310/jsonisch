@@ -80,7 +80,7 @@ const ROOT_SURFACE = [
   "envelopesWire",
   "isEnvelope",
   "wrapEstimate",
-  "wrapHybrid",
+  "wrapAmountOrPercent",
 ].sort();
 
 const PLUGIN_SURFACE = [
