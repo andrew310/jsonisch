@@ -1,8 +1,7 @@
 import type { JsonSchema } from "../types";
 
 /**
- * The relation config a select/multiselect control may carry — the jsonisch
- * counterpart of janska-resolver's `ResolvedField.relation` (LOS-567). Read
+ * The relation config a select/multiselect control may carry. Read
  * straight off the schema node at render time; jsonisch's `inferControl`
  * already classified the node select/multiselect, so this only decides
  * WHICH picker renders and with what search filters.
@@ -78,7 +77,7 @@ function hasType(schema: JsonSchema, type: string): boolean {
 /**
  * Reads the widget extras (role, traits filter, …) that ride as sibling
  * keys on both relation forms — `x-relation` namespace first, legacy flat
- * keys as fallback (same precedence as janska-resolver).
+ * keys as fallback.
  */
 function readExtras(record: Record<string, unknown>): {
   role?: string | undefined;
@@ -109,7 +108,7 @@ function readExtras(record: Record<string, unknown>): {
 
 /**
  * Reads a node's relation config, or `undefined` for a plain enum
- * select/multiselect. Two schema forms (janska-resolver parity):
+ * select/multiselect. Two schema forms:
  *   1. Canonical — `$ref: schema://<target>` (one) or array of that ref
  *      (many); widget extras ride as sibling keys.
  *   2. Vendor — `x-relation` namespace or legacy `x-relation-target`;

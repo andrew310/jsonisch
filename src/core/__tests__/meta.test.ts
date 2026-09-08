@@ -154,7 +154,7 @@ describe("meta channel", () => {
       });
     });
 
-    test("should treat a meta half without a mode as manual (janska default)", () => {
+    test("should treat a meta half without a mode as manual (the legacy default)", () => {
       const store = createTestStore(
         objectSchema({ a: { type: "number" }, fee: estimateField("double") }),
         {
@@ -166,7 +166,7 @@ describe("meta channel", () => {
     });
 
     test("should default to estimate mode without an envelope (manual-first)", () => {
-      // janska parity (LOS-461): a meta-less field is always typeable; the
+      // LOS-461 rule: a meta-less field is always typeable; the
       // empty-estimate fall-through in derivation keeps dependents on the
       // formula until a real estimate lands
       const schema = objectSchema({

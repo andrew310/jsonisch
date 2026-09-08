@@ -132,7 +132,7 @@ function readRelation(
 /**
  * Decides which UI widget kind a JSON-Schema node renders as.
  *
- * Precedence (ported from janska-resolver `inferControl`, settled naming):
+ * Precedence:
  *   1. Relations — `$ref`, array-of-`$ref`, or `x-relation`/legacy
  *      `x-relation-target`. Single → select, many → multiselect.
  *   2. Explicit `x-ui.control` or legacy `x-field-type` (translated), plus

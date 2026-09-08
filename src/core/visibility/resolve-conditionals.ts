@@ -4,8 +4,7 @@ import type { VisibleWhen } from "../types/visibility";
 
 /**
  * Resolves the root schema's `allOf` `if/then/else` blocks into one
- * `VisibleWhen` per gated field key (ported from janska-resolver
- * `resolveConditionals`, first-match-wins per key).
+ * `VisibleWhen` per gated field key (first-match-wins per key).
  *
  * Supported condition shapes (the only ones in seed + prod schemas):
  *   - `{ const: x }`             → equals x

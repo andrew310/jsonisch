@@ -4,8 +4,7 @@ import type { ContainerInput } from "./types/field";
  * Returns whether a value is semantically empty: `undefined`, `null`, the
  * empty string, or `NaN` (what a cleared number input parses to). These are
  * all "no value entered" and must never make a field dirty against each
- * other — the core semantic-dirty promise that replaces the janska
- * descriptor layer.
+ * other — the core semantic-dirty promise.
  */
 export function isEmptyish(value: unknown): boolean {
   return (

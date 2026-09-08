@@ -17,9 +17,8 @@ beforeEach(resetIdCounter);
 /**
  * The schema is the allow-list (OWASP CWE-915 whitelist): keys in
  * `initialInput` not declared in the schema never enter form state and
- * never appear in any output projection. This is the one testable library
- * property that replaces today's three-place hidden-field coordination
- * inside JanskaForm.
+ * never appear in any output projection — the one testable library
+ * property that replaces hidden-field coordination in the host.
  */
 describe("allow-list invariant", () => {
   const schema = objectSchema(
