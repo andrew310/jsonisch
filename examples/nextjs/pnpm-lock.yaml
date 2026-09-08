@@ -21,8 +21,8 @@ importers:
         specifier: ^0.2.6
         version: 0.2.6
       jsonisch:
-        specifier: ^0.1.1
-        version: 0.1.1(react@19.2.8)
+        specifier: ^0.1.2
+        version: 0.1.2(react@19.2.8)
       lucide-react:
         specifier: ^1.43.0
         version: 1.43.0(react@19.2.8)
@@ -2774,8 +2774,8 @@ packages:
   jsonfile@6.2.1:
     resolution: {integrity: sha512-zwOTdL3rFQ/lRdBnntKVOX6k5cKJwEc1HdilT71BWEu7J41gXIB2MRp+vxduPSwZJPWBxEzv4yH1wYLJGUHX4Q==}
 
-  jsonisch@0.1.1:
-    resolution: {integrity: sha512-ALfQzTznHfWpzRvfM+iU9txiA+lSdt1mEONLKXXwpac/E3vycrr6vmhlsg66kqQvlmXVnW6n9VttYGlPlHGaCg==}
+  jsonisch@0.1.2:
+    resolution: {integrity: sha512-HH0F/jnfK1vnzkGlyLghdFRAMksevsmZJjHSahQNTpbBhviz77wJC+ZAlQTqaYPL3WwFIlhzrMIvr+IJDNLBtA==}
     engines: {node: '>=20'}
     peerDependencies:
       react: ^19.0.0
@@ -6718,7 +6718,7 @@ snapshots:
     optionalDependencies:
       graceful-fs: 4.2.11
 
-  jsonisch@0.1.1(react@19.2.8):
+  jsonisch@0.1.2(react@19.2.8):
     optionalDependencies:
       react: 19.2.8
 
