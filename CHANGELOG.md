@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/andrew310/jsonisch/compare/v0.1.1...v0.1.2) (2026-09-08)
+
+
+### Bug Fixes
+
+* derived keys absent from input projection; dist augmentations target public specifier ([#30](https://github.com/andrew310/jsonisch/issues/30)) ([7188b24](https://github.com/andrew310/jsonisch/commit/7188b248e2a0b717224d0c029cc88b2c71beba51)), closes [#28](https://github.com/andrew310/jsonisch/issues/28)
+
 ## [0.1.1](https://github.com/andrew310/jsonisch/compare/v0.1.0...v0.1.1) (2026-09-08)
 
 
