@@ -1,6 +1,9 @@
 # jsonisch
 
-> Schema in, reactive form out. A form library that **derives forms from JSON-Schema** — state, validation, derivation, dirty-tracking, and reconcile — driven by the schema itself, not a validation-library type.
+> Schemas as values. A form library for apps where JSON-Schemas are **runtime
+> data** — stored in a database, customized by admins, composed on the fly —
+> and the whole form is derived from the schema value: state, validation,
+> derived values, visibility, dirty-tracking.
 
 **Status: experimental.** The API is in production in one app. It is not frozen.
 
@@ -15,65 +18,141 @@ import { createFormStore } from "jsonisch";
 import { createFormHook } from "jsonisch/react";
 ```
 
-React is an optional peer. The core store is DOM-free. Formula evaluation is an injected `CalcEngine` — jsonisch does not bundle a formula language.
+React is an optional peer. The core store is DOM-free.
 
 ---
 
-## The one-line pitch
+## The problem: schemas as values
 
-Most form libraries make you hand-write a component per field and wire up state, validation, and derived values yourself. `jsonisch` takes a **JSON-Schema** — the kind you already store in a database — walks it once, and gives you a fully reactive, validated form with the fields already wired. You bring the widgets; it brings everything else.
+Most form libraries assume the shape of your form is known at build time —
+a Zod schema in a module, types inferred from it, a hand-written component
+per field. That assumption breaks the moment your app lets users customize
+their forms: now the schema is a **value**, fetched from a database at
+request time, different per tenant, edited without a deploy. There is no
+compile-time type to infer against, and nobody is hand-writing a component
+per field for a form that didn't exist yesterday.
+
+`jsonisch` starts from that world. It takes a JSON-Schema value, walks it
+once, and gives you a fully reactive, validated form with the fields already
+wired:
+
+- **Validation** through an injected validator — the interface is
+  deliberately AJV-shaped, so a compiled AJV validate function passes
+  through unchanged (a first-party validation library may follow).
+- **Rendering** through YOUR components — shadcn, your design system,
+  anything. You register widgets once, keyed by control kind; every schema
+  a tenant can invent renders through that one registry.
+- **Derived values** through an injected calc engine that owns the
+  expression language; jsonisch owns the scope construction and the
+  derivation wiring (dependency graph, computed signals, exclusion from
+  dirty-tracking and the submit payload *by construction*).
+- **Dirty-tracking, visibility, reset, submit** — driven by the schema
+  walk, not by per-field wiring.
+
+You bring the components; it brings everything else.
+
+---
+
+## Quickstart
+
+Write your widgets as plain controlled components — here with shadcn:
 
 ```tsx
-// register your widgets once
+// widgets.tsx
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import type { WidgetProps } from "jsonisch/react";
+
+export function TextWidget({ field }: WidgetProps) {
+  return (
+    <div>
+      <Label htmlFor={field.name}>{field.schema.title ?? field.name}</Label>
+      <Input
+        id={field.name}
+        value={(field.input as string) ?? ""}
+        onChange={(e) => field.onChange(e.target.value)}
+        {...field.props}
+      />
+      {field.errors && <p className="text-sm text-destructive">{field.errors[0]}</p>}
+    </div>
+  );
+}
+
+export function CurrencyWidget({ field }: WidgetProps) {
+  /* same shape: field.input in, field.onChange out */
+}
+
+export function SelectWidget({ field }: WidgetProps) {
+  /* options come from field.schema.enum — the schema node rides along */
+}
+```
+
+Register them once, with a validator, at module level:
+
+```ts
+// form.ts
+import Ajv from "ajv";
+import { createFormHook } from "jsonisch/react";
+import { CurrencyWidget, SelectWidget, TextWidget } from "./widgets";
+
+const ajv = new Ajv({ allErrors: true, strict: false });
+
 export const { useAppForm, Form, Field } = createFormHook({
-  widgets: { text: TextWidget, currency: CurrencyWidget, select: SelectWidget /* … */ },
-  validate: ajvValidator,
+  widgets: { text: TextWidget, currency: CurrencyWidget, select: SelectWidget },
+  validate: (schema) => {
+    const check = ajv.compile(schema);
+    return (input) => (check(input) ? null : check.errors);
+  },
 });
-
-// a whole form, rolled from the schema — no hand-written fields
-const form = useAppForm({ schema, initialInput: record });
-return <Form of={form} onSubmit={save} />;
 ```
 
----
+Then every form is two lines, no matter what schema shows up:
 
-## Why another form library? A short history of the re-render problem
+```tsx
+// Fetched from your database — a VALUE, not a type
+const schema = {
+  type: "object",
+  required: ["borrowerName"],
+  properties: {
+    borrowerName: { type: "string", title: "Borrower name" },
+    loanAmount: {
+      type: "number",
+      title: "Loan amount",
+      "x-ui": { control: "currency" },
+    },
+    loanType: {
+      type: "string",
+      title: "Loan type",
+      enum: ["bridge", "construction", "rental"],
+      "x-ui": { control: "select" },
+    },
+  },
+};
 
-Every React form library is, underneath, an answer to one question: **when I type one character into a 60-field form, what re-renders?** The history is basically that answer getting better.
-
-| Era | Library | How it held form state | What re-rendered on a keystroke |
-|---|---|---|---|
-| ~2016 | **Redux-Form** | in the Redux store | the whole form subtree, from the store — correct, and famously slow |
-| ~2018 | **Formik** | one React state object at the top | all fields — the "everything re-renders" problem |
-| ~2018 | **React Final Form** | an observable form-state object + **per-field subscriptions** | only the field you typed in — hand-rolled fine-grained reactivity |
-| ~2019 | **react-hook-form** | **uncontrolled inputs + refs** (the DOM holds the value) | nothing, until you ask — fast by *dodging* React |
-| ~2020 | **TanStack Form** | a framework-agnostic store + **selector subscriptions** | only the subscribed slice — plus deep type inference and a composition API |
-| ~2024 | **Formisch** (and the SolidJS lineage) | **signals** | only the true dependents — reactivity at the *value* level, with computeds for free |
-
-React Final Form and TanStack Form both reach for **subscriptions**; signals are the same idea made automatic and general — read a value and you're subscribed, write it and only the readers re-run.
-
-### What's a signal, concretely?
-
-A signal is a value that tracks who reads it, so it can notify exactly those readers when it changes. The whole mechanism is small:
-
-```js
-let currentListener = null;                 // "who's reading right now?"
-
-function signal(value) {
-  const subs = new Set();
-  return {
-    get() { if (currentListener) subs.add(currentListener); return value; }, // read = subscribe
-    set(next) { value = next; subs.forEach((fn) => fn()); },                 // write = notify
-  };
-}
-
-function effect(fn) {                        // re-runs when any signal it read changes
-  const run = () => { currentListener = run; fn(); currentListener = null; };
-  run();
+function LoanForm({ record }: { record: unknown }) {
+  const form = useAppForm({ schema, initialInput: record });
+  return <Form of={form} onSubmit={(output) => save(output)} />;
 }
 ```
 
-The trick is the global `currentListener`: while a computation runs, any `signal.get()` it calls auto-subscribes it. No dependency arrays. A **computed** (e.g. a formula field) is just an `effect` that reads some signals and writes to its own. In React, a `useSignals()` hook bridges the gap — it registers a subscriber that re-renders the component and collects which signals were read during render.
+`<Form>` without children renders the whole form from the schema through the
+widget registry — no hand-written field components. `onSubmit` receives the
+validated output; an invalid submit blocks the handler and focuses the first
+erroring field. For custom layouts, `<Field of={form} path={["loanAmount"]} />`
+places one registry-dispatched field, and a render-function child makes it
+headless.
+
+Widgets resolve by **control kind** — an explicit `x-ui.control` on the
+schema node, or inferred from `format`/`type` (`inferControl` is exported).
+A kind without a registry entry renders a visible fallback naming the
+missing kind, so a schema misconfiguration can't silently drop a field.
+
+Derived fields declare a formula on the schema node (`x-formula`), and the
+form evaluates them reactively through a `CalcEngine` you inject as a
+plugin — parse, evaluate, extract dependencies. The engine owns the
+expression language; jsonisch builds the eval scopes (including the
+root-record alias — `rootRecordAlias`, default `"record"` — the key stored
+formulas use to address the root record) and wires the dependency graph.
 
 ---
 
@@ -81,27 +160,56 @@ The trick is the global `currentListener`: while a computation runs, any `signal
 
 `jsonisch` is a synthesis of three lineages, picking one idea from each:
 
-- **From TanStack Form** — the **framework-agnostic core + thin adapters** layout, and the **`createFormHook({ widgets })` composition/registry** pattern: register your design-system widgets once, get a typed `useAppForm` with them baked in.
-- **From Formisch** — **signals** as the reactivity engine (its own, no external signal lib), so a keystroke re-renders only the fields that depend on it, and formula/derived fields recompute automatically.
-- **New here** — the schema kind is **JSON-Schema**, not Zod/Valibot/Yup. Validation runs through **AJV**. Derived values are computed signals over the formulas already declared in the schema, so they're excluded from dirty-tracking and the submit payload *by construction*.
+- **From TanStack Form** — the **framework-agnostic core + thin adapters**
+  layout, and the **`createFormHook({ widgets })` composition/registry**
+  pattern: register your design-system widgets once, get a typed
+  `useAppForm` with them baked in.
+- **From Formisch** — **signals** as the reactivity engine (its own, no
+  external signal lib), so a keystroke re-renders only the fields that
+  depend on it, and derived fields recompute automatically.
+- **New here** — the schema kind is **JSON-Schema**, not Zod/Valibot/Yup.
+  Validation runs through an injected AJV-shaped validator. Derived values
+  are computed signals over the formulas already declared in the schema, so
+  they're excluded from dirty-tracking and the submit payload *by
+  construction*.
+
+The re-render question — "when I type one character into a 60-field form,
+what re-renders?" — has a two-decade history that signals largely closed,
+and jsonisch inherits that answer from the formisch lineage rather than
+contributing one. The full story, table and all, lives in
+[docs/rerender-history.md](https://github.com/andrew310/jsonisch/blob/main/docs/rerender-history.md).
 
 ### Design stance on types
 
-TanStack Form's headline is deep, compile-time **path type-inference**. `jsonisch` deliberately **drops it** — our schemas are runtime database data, so field paths are runtime values with no compile-time shape to infer against. The bet: keep *enough* typing that `tsc` stays a cheap, deterministic tripwire on the code (still very much worth it), but skip the galaxy-brain generics, and lean on **AJV + tests** for the runtime-shape correctness that types can't cover for a schema that only exists at runtime anyway.
+TanStack Form's headline is deep, compile-time **path type-inference**.
+`jsonisch` deliberately **drops it** — our schemas are runtime database
+data, so field paths are runtime values with no compile-time shape to infer
+against. The bet: keep *enough* typing that `tsc` stays a cheap,
+deterministic tripwire on the code (still very much worth it), but skip the
+galaxy-brain generics, and lean on **AJV + tests** for the runtime-shape
+correctness that types can't cover for a schema that only exists at runtime
+anyway.
 
 ---
 
-## Architecture (mirrors formisch's shape)
+## Architecture
 
-- **core** — framework-agnostic store. `createFormStore(config, deps)` walks the JSON-Schema once and builds a field-store tree (`kind: array | object | value`), each node carrying signals (`input`/`initialInput` for dirty-vs-reset, `errors`, `isDirty`, DOM `elements`). DOM-free and isomorphic — the same walk runs server-side.
-- **methods** — tree-shakeable ops: `setInput`, `validate`, `reset`, `insert/move/remove/swap`, `handleSubmit`, `pickDirty`, `applyBaseline`.
+- **core** — framework-agnostic store. `createFormStore(config, deps)` walks
+  the JSON-Schema once and builds a field-store tree
+  (`kind: array | object | value`), each node carrying signals
+  (`input`/`initialInput` for dirty-vs-reset, `errors`, `isDirty`, DOM
+  `elements`). DOM-free and isomorphic — the same walk runs server-side.
+- **methods** — tree-shakeable ops: `setInput`, `validate`, `reset`,
+  `insert/move/remove/swap`, `handleSubmit`, `pickDirty`, `applyBaseline`.
 - **react** — `createFormHook`, `useAppForm`, `<Form>`, headless `<Field>`.
 
-Deeper dives, with diagrams, live in [`docs/`](./docs):
+Deeper dives, with diagrams, live in
+[`docs/`](https://github.com/andrew310/jsonisch/tree/main/docs):
 
-- [decode-fork.md](./docs/decode-fork.md) — how a server record becomes `initialInput` (`x-column` routing, the envelope twin).
-- [plugin-lifecycle.md](./docs/plugin-lifecycle.md) — the pass order at build, and the reseed / rebase / reset / transfer sites.
-- [wire-shapes.md](./docs/wire-shapes.md) — the save payload partition, the persisted envelopes, and the LOS-461 skip policy.
+- [rerender-history.md](https://github.com/andrew310/jsonisch/blob/main/docs/rerender-history.md) — a short history of the form re-render problem, and what a signal is, concretely.
+- [decode-fork.md](https://github.com/andrew310/jsonisch/blob/main/docs/decode-fork.md) — how a server record becomes `initialInput` (`x-column` routing, the envelope twin).
+- [plugin-lifecycle.md](https://github.com/andrew310/jsonisch/blob/main/docs/plugin-lifecycle.md) — the pass order at build, and the reseed / rebase / reset / transfer sites.
+- [wire-shapes.md](https://github.com/andrew310/jsonisch/blob/main/docs/wire-shapes.md) — the save payload partition, the persisted envelopes, and the LOS-461 skip policy.
 
 ---
 
