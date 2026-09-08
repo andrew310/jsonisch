@@ -19,7 +19,6 @@ export const metadata: Metadata = {
   title: "jsonisch — schemas as { values }",
   description:
     "Reactive forms derived from JSON-Schema that's runtime data — stored in your database, customized by your admins, or written by an LLM a second ago. Bring your own components.",
-  icons: { icon: "/logo.jpg" },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
