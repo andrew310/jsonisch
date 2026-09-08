@@ -94,16 +94,16 @@ export function canonicalRowOf(
  * Resolves a row-scope dependency once the LIVE row value is already in
  * hand — the precedence a per-row formula evaluates in:
  *
- *   1. the record handle (`form.recordHandle`) from `offFormValues` (it
- *      wins outright: a row column named like the handle is never the
- *      parent-record handle),
+ *   1. the root-record alias (`form.rootRecordAlias`) from `offFormValues` (it
+ *      wins outright: a row column named like the alias is never the
+ *      root record),
  *   2. the live sibling value in the SAME row (an explicit `null` counts —
  *      only `undefined` means "the row does not hold this"),
  *   3. the canonical row's column.
  *
  * A row scope deliberately does NOT see root-level form fields or other
  * `offFormValues` keys: a row's formula is evaluated against its own record
- * plus the parent handle, exactly as the server evaluates it.
+ * plus the root record, exactly as the server evaluates it.
  *
  * @param internalFormStore The form store.
  * @param rowStore The array-item object store the formula lives in.
@@ -118,7 +118,7 @@ export function resolveRowFallback(
   key: string,
   formValue: unknown,
 ): unknown {
-  if (key === internalFormStore.recordHandle) {
+  if (key === internalFormStore.rootRecordAlias) {
     const handle = readOwn(internalFormStore.offFormValues.value, key);
     if (handle && typeof handle === "object") return handle;
   }

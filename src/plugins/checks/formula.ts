@@ -85,7 +85,7 @@ export function formulaCheck(engine: CalcEngine): CheckDefinition<FormulaOptions
 
 /**
  * Eval bag for one formula run. Every dep goes through `scope.get` — pathRef
- * names are NOT forced through `rows()` (a `record[…]` handle is a plain
+ * names are NOT forced through `rows()` (a `record[…]` root-record ref is a plain
  * object; rows would collapse it to `[]`). Collections absent from deps
  * still land via rows() for aggregate-only refs.
  */

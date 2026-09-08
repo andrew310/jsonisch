@@ -8,7 +8,7 @@
  * task can call it identically from a plugin's `build` and from any
  * engine-less reader.
  */
-import { DEFAULT_RECORD_HANDLE } from "../../core/form/create-form-store";
+import { DEFAULT_ROOT_RECORD_ALIAS } from "../../core/form/create-form-store";
 import { readRelationConfig } from "../../core/relation/relation-config";
 import type { JsonSchema } from "../../core/types/schema";
 import { envelopesWire, isEnvelope } from "../envelopes/wire";
@@ -27,13 +27,13 @@ export interface BaggerOptions {
 }
 
 /**
- * `computeBag` is store-less, so the handle key arrives as an option here;
- * the plugin threads `form.recordHandle` through (the one home — the
- * plugin deliberately has NO handle option of its own, so the alias writer
+ * `computeBag` is store-less, so the alias key arrives as an option here;
+ * the plugin threads `form.rootRecordAlias` through (the one home — the
+ * plugin deliberately has NO alias option of its own, so the alias writer
  * and the row-scope reader can never disagree).
  */
 export interface ComputeBagOptions extends BaggerOptions {
-  handle?: string;
+  rootRecordAlias?: string;
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -105,7 +105,7 @@ function unwrapEnvelopes(
 /**
  * Computes the off-form value bag for a canonical record: every declared
  * scalar and relation collection, bag-merged and envelope-unwrapped, plus
- * a `handle` alias holding the whole computed scope (so a formula or
+ * an alias entry holding the whole computed scope (so a formula or
  * widget can address `record.termMonths` as readily as bare `termMonths`).
  */
 export function computeBag(
@@ -114,7 +114,7 @@ export function computeBag(
   opts?: ComputeBagOptions,
 ): Record<string, unknown> {
   const bag = opts?.bag ?? DEFAULT_BAG;
-  const handle = opts?.handle ?? DEFAULT_RECORD_HANDLE;
+  const alias = opts?.rootRecordAlias ?? DEFAULT_ROOT_RECORD_ALIAS;
 
   const scope = unwrapEnvelopes(flattenSourceRow(record, bag));
 
@@ -134,6 +134,6 @@ export function computeBag(
       : [];
   }
 
-  scope[handle] = { ...scope };
+  scope[alias] = { ...scope };
   return scope;
 }

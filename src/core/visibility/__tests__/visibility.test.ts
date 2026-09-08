@@ -211,7 +211,7 @@ describe("visibility signals", () => {
     expect(gated.visible?.value).toBe(false);
   });
 
-  test("record-handle bracket ref reads off the parent handle (LOS-471)", () => {
+  test("root-record bracket ref reads off the root record (LOS-471)", () => {
     const schema: JsonSchema = {
       type: "object",
       properties: { gated: { type: "string" } },
@@ -375,7 +375,7 @@ describe("row-scope visibility (LOS-722 / LOS-819)", () => {
     );
   });
 
-  test("bracket-form trigger reads the record handle in a row scope (LOS-819)", () => {
+  test("bracket-form trigger reads the root-record alias in a row scope (LOS-819)", () => {
     const form = createTestStore(traySchema("record[transaction_type]"), {
       initialInput: { assets: [{ id: "a1" }] },
       offFormValues: { record: { transaction_type: "purchase" } },

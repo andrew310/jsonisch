@@ -81,10 +81,10 @@ describe("bagger()", () => {
     expect((shelf.record as Record<string, unknown>).assets).toBeDefined();
   });
 
-  test("the shelf's handle alias follows the form's recordHandle", () => {
+  test("the shelf's alias entry follows the form's rootRecordAlias", () => {
     const form = createFormStore({
       schema: TRAY_SCHEMA,
-      recordHandle: "invoice",
+      rootRecordAlias: "invoice",
       initialInput: { assets: [{ id: "a1" }] },
       plugins: [envelopes(), bagger(RECORD), visibility()],
     });

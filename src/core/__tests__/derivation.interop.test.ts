@@ -116,7 +116,7 @@ describe.skipIf(!engine)("derivation with the real @rwa/formulas engine", () => 
     expect(derivedAt(store, ["totalAiv"]).value).toBe(750_000);
   });
 
-  test("should resolve a scalar record handle (loan[…]) from offFormValues", () => {
+  test("should resolve a scalar root-record ref (loan[…]) from offFormValues", () => {
     // PR #459's LOS-463 shape: an asset-side formula reading the parent loan
     // through the eval-scope-only `loan` bag
     const store = createFormStore({
@@ -153,7 +153,7 @@ describe.skipIf(!engine)("derivation with the real @rwa/formulas engine", () => 
     expect(derivedAt(store, ["good"]).value).toBe(20);
   });
 
-  test("should derive a per-row formula against its row + the loan handle", () => {
+  test("should derive a per-row formula against its row + the root record (`loan`)", () => {
     // The shape a relation/asset tray renders (LOS-596): the row formula is
     // the SAME machinery as a root one, only its scope differs
     const store = createFormStore({
@@ -168,7 +168,7 @@ describe.skipIf(!engine)("derivation with the real @rwa/formulas engine", () => 
           }),
         },
       }),
-      recordHandle: "loan",
+      rootRecordAlias: "loan",
       initialInput: { assets: [{ id: "a1", estimatedAiv: 300_000 }] },
       offFormValues: {
         loan: { commitment: 1_200_000 },

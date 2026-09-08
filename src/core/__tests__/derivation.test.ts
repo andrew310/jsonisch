@@ -875,7 +875,7 @@ describe("derivation", () => {
 
   describe("row-scoped derivation (LOS-596)", () => {
     // A row's scope is its own record: live siblings win, the canonical row
-    // fills, the parent handle rides under `loan`.
+    // fills, the root record rides under the alias.
     const rowSchema = (extra?: Record<string, JsonSchema>): JsonSchema =>
       objectSchema({
         assets: {
@@ -976,7 +976,7 @@ describe("derivation", () => {
       ).toBe(14);
     });
 
-    test("should re-resolve rows from a fresher parent record (configured handle)", () => {
+    test("should re-resolve rows from a fresher root record (configured alias)", () => {
       const exprs = {
         share: stub(
           ["landValue", "loan"],
@@ -996,7 +996,7 @@ describe("derivation", () => {
             }),
           },
         }),
-        recordHandle: "loan",
+        rootRecordAlias: "loan",
         initialInput: { assets: [{ id: "a1", landValue: 250 }] },
         offFormValues: { loan: { commitment: 1000 } },
         plugins: testPlugins(makeEngine(exprs)),
@@ -1008,7 +1008,7 @@ describe("derivation", () => {
       expect(derivedAt(store, ["assets", 0, "share"]).value).toBe(0.5);
     });
 
-    test("should resolve the parent record handle under the default `record` key", () => {
+    test("should resolve the root record under the default `record` alias", () => {
       const exprs = {
         share: stub(
           ["landValue", "record"],
@@ -1035,7 +1035,7 @@ describe("derivation", () => {
       expect(derivedAt(store, ["assets", 0, "share"]).value).toBe(0.25);
     });
 
-    test("should resolve the parent record handle under a configured `recordHandle`", () => {
+    test("should resolve the root record under a configured `rootRecordAlias`", () => {
       const exprs = {
         share: stub(
           ["landValue", "invoice"],
@@ -1055,7 +1055,7 @@ describe("derivation", () => {
             }),
           },
         }),
-        recordHandle: "invoice",
+        rootRecordAlias: "invoice",
         initialInput: { assets: [{ id: "a1", landValue: 250 }] },
         offFormValues: { invoice: { commitment: 500 } },
         plugins: testPlugins(makeEngine(exprs)),
@@ -1172,7 +1172,7 @@ describe("derivation", () => {
             }),
           },
         }),
-        recordHandle: "loan",
+        rootRecordAlias: "loan",
         initialInput: {
           landValue: 5,
           assets: [{ id: "a1", landValue: 100, buildingValue: 50 }],
@@ -1186,7 +1186,7 @@ describe("derivation", () => {
       // Root path → the document scope
       expect(resolveScopeValueAt(store, ["landValue"], "landValue")).toBe(5);
       // Row path → the row's own value, the canonical row's fill, the
-      // parent handle, and a row formula through its derived signal
+      // root record, and a row formula through its derived signal
       const rowPath = ["assets", 0, "rowTotal"];
       expect(resolveScopeValueAt(store, rowPath, "landValue")).toBe(100);
       expect(resolveScopeValueAt(store, rowPath, "liens")).toBe(7);

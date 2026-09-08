@@ -64,7 +64,7 @@ export function visibility(): JsonischPlugin<null> {
  * Evaluates a visibility rule against the canonical scope: the form value
  * wins, `offFormValues` fills what the form does not hold — so a WHEN can
  * watch an off-stage record field, and (via the `record[key]` bracket form) a
- * parent-record handle field from an asset schema (LOS-471).
+ * root-record alias field from an asset schema (LOS-471).
  */
 function evaluateVisibleWhen(
   internalFormStore: InternalFormStore,
@@ -80,7 +80,7 @@ function evaluateVisibleWhen(
  * derived-aware → canonical row from `offFormValues`), so toggling row A's
  * trigger flips row A's gated field and no other row's. The bracket form
  * resolves its base through the same row precedence — `record[key]` reads off
- * the record handle exactly as it does at root (LOS-819).
+ * the root-record alias exactly as it does at root (LOS-819).
  */
 function evaluateRowVisibleWhen(
   internalFormStore: InternalFormStore,
@@ -128,7 +128,7 @@ function resolveWhenRef(
  * Parses a watched-field reference over a scope's own key resolver. Two
  * shapes, mirroring the formula grammar: a plain key resolves through the
  * scope precedence; the bracket form `record[key]` reads `key` off the OBJECT
- * the scope resolves under the form's `recordHandle`. An absent or
+ * the scope resolves under the form's `rootRecordAlias`. An absent or
  * non-object handle resolves `undefined`, so an equals-gated field simply
  * stays hidden — e.g. in a host with no parent record in scope.
  */

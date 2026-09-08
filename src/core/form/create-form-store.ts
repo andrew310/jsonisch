@@ -16,11 +16,11 @@ import type { FormConfig, InternalFormStore } from "../types";
 export const DEFAULT_EMPTY_INPUT: Record<string, unknown> = { string: "" };
 
 /**
- * The default parent-record handle key (`FormConfig.recordHandle`). The
- * store's resolved `recordHandle` is the one home at runtime; this default
+ * The default root-record alias (`FormConfig.rootRecordAlias`). The
+ * store's resolved value is the one home at runtime; this default
  * exists so store-less readers (`computeBag`) resolve identically.
  */
-export const DEFAULT_RECORD_HANDLE = "record";
+export const DEFAULT_ROOT_RECORD_ALIAS = "record";
 
 /**
  * Creates a new internal form store from the provided configuration: walks
@@ -53,9 +53,9 @@ export function createFormStore(config: FormConfig): InternalFormStore {
   // so the field stores can read it from the form store
   store.emptyInput = { ...DEFAULT_EMPTY_INPUT, ...config.emptyInput };
 
-  // Resolve the parent-record handle before plugin `build` runs — the
+  // Resolve the root-record alias before plugin `build` runs — the
   // bagger's shelf alias reads it there
-  store.recordHandle = config.recordHandle ?? DEFAULT_RECORD_HANDLE;
+  store.rootRecordAlias = config.rootRecordAlias ?? DEFAULT_ROOT_RECORD_ALIAS;
 
   // Set validation config (validator injected pre-compiled, once per schema)
   store.validator = config.validator;

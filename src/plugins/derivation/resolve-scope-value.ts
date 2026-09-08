@@ -57,7 +57,7 @@ export function resolveScopeValue(
  *
  * - inside an array row, the ROW's scope (live siblings in the same row →
  *   the canonical row from `offFormValues` matched by `id` → the parent
- *   record handle under the form's `recordHandle`), so a per-row formula's inputs are ITS
+ *   root record under the form's `rootRecordAlias`), so a per-row formula's inputs are ITS
  *   row's values;
  * - anywhere else, the document scope (`resolveScopeValue`).
  *

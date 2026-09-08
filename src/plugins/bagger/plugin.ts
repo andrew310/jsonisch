@@ -176,12 +176,12 @@ export function bagger(
       // plugin's `build` (`create-form-store.ts`), so `form.schema` is
       // still undefined here.
       const schema = config.schema;
-      // The handle comes from the store, never from a plugin option — the
-      // alias this writes and the reserved word row scope resolves must be
+      // The alias comes from the store, never from a plugin option — the
+      // entry this writes and the reserved word row scope resolves must be
       // the same key by construction.
       const scope = computeBag(schema, record, {
         ...opts,
-        handle: form.recordHandle,
+        rootRecordAlias: form.rootRecordAlias,
       });
       const rowsByField = new Map<string, Map<string, Record<string, unknown>>>();
       // Same classification as the shelf (`collectionKeys`) — a key the

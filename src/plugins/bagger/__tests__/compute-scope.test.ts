@@ -48,8 +48,8 @@ describe("computeBag", () => {
     expect((scope.record as Record<string, unknown>).termMonths).toBe(12);
   });
 
-  test("whole scope aliases under a configured handle key", () => {
-    const scope = computeBag(SCHEMA, { termMonths: 12 }, { handle: "loan" });
+  test("whole scope aliases under a configured rootRecordAlias", () => {
+    const scope = computeBag(SCHEMA, { termMonths: 12 }, { rootRecordAlias: "loan" });
     expect((scope.loan as Record<string, unknown>).termMonths).toBe(12);
   });
 

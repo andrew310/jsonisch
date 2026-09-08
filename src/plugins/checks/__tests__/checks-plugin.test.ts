@@ -372,7 +372,7 @@ describe("checks plugin", () => {
     expect(findings[0]?.message).toMatch(/Empty formula/i);
   });
 
-  test("loan[fundingDate] resolves the record handle, not rows()", () => {
+  test("loan[fundingDate] resolves the root record, not rows()", () => {
     const node = stub(
       ["loan"],
       (scope) => {

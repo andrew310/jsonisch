@@ -77,15 +77,15 @@ export interface FormConfig {
    */
   readonly offFormValues?: Record<string, unknown>;
   /**
-   * The eval-scope key the parent-record object rides under (`record` by
-   * default): a formula addresses the parent through the bracket form
-   * (`record[total]`). The key is RESERVED in row scope — it resolves to
-   * the parent object from `offFormValues` before any row column of the
-   * same name — so a host whose rows legitimately carry the default key
-   * must pick another. One home: the bagger's shelf alias and every scope
-   * resolver read this value.
+   * The identifier the host's stored formulas use for the root record
+   * (`record` by default). Why it exists: a row's eval scope is sealed to
+   * its own columns, so a per-row calc that needs a root value — an
+   * asset's share of `loan[totalLoanAmount]` — can only reach the root
+   * through this one name. Reserved in row scope (it wins over a row
+   * column of the same name); hosts whose schemas already say `loan[…]`
+   * pass `"loan"`.
    */
-  readonly recordHandle?: string | undefined;
+  readonly rootRecordAlias?: string | undefined;
   /**
    * The registered plugins, run in array order within each hook. Falsy
    * entries and one level of nesting are accepted
@@ -156,10 +156,10 @@ export interface InternalFormStore extends InternalObjectStore {
    */
   emptyInput: Record<string, unknown>;
   /**
-   * The resolved parent-record handle key (config value or the default),
+   * The resolved root-record alias (config value or the default) —
    * the one home both the shelf alias writer and the scope resolvers read.
    */
-  recordHandle: string;
+  rootRecordAlias: string;
   /**
    * The injected validator, or `undefined` for a form without enforcement.
    */
