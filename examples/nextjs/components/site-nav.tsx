@@ -6,15 +6,23 @@ export function SiteNav() {
     <header className="border-border/60 border-b">
       <nav className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
         <Link href="/" className="flex items-center gap-2.5">
-          {/* mascot.png is the background-removed cylinder sprite: it scales like a
-              glyph beside the wordmark instead of floating in a padded box. */}
-          <Image
-            src="/mascot.png"
-            alt=""
-            width={26}
-            height={26}
-                        priority
-          />
+          {/* The lockup rebuilds the logo from live parts: typeset braces
+              (crisp and baseline-aligned at any size) around the sprite —
+              cyan opens, pink closes, per the brand rule. */}
+          <span
+            aria-hidden="true"
+            className="flex items-center gap-[3px] font-mono text-lg font-medium"
+          >
+            <span className="text-brace-open">{"{"}</span>
+            <Image
+              src="/mascot.png"
+              alt=""
+              width={22}
+              height={22}
+              priority
+            />
+            <span className="text-brace-close">{"}"}</span>
+          </span>
           <span className="font-mono text-sm font-medium tracking-tight">
             jsonisch
           </span>
