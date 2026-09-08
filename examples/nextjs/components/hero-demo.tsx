@@ -41,7 +41,7 @@ export function HeroDemo() {
     initialInput: { projectType: "brand identity", budget: 18000 },
   });
   return (
-    <div className="border-border bg-card w-full overflow-hidden rounded-xl border">
+    <div className="border-border bg-card w-full overflow-hidden rounded-xl border shadow-[0_0_40px_rgba(69,212,255,0.10)]">
       <div className="border-border/60 border-b px-5 py-4">
         <p className="text-muted-foreground mb-3 font-mono text-xs tracking-widest uppercase">
           the schema — runtime data

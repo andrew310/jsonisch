@@ -71,7 +71,7 @@ export function Playground() {
 
   return (
     <div className="grid items-start gap-6 lg:grid-cols-2">
-      <Card>
+      <Card className="shadow-[0_0_40px_rgba(69,212,255,0.10)]">
         <CardHeader>
           <p className="text-muted-foreground font-mono text-xs tracking-widest uppercase">
             the schema — runtime data
@@ -130,7 +130,7 @@ export function Playground() {
       </Card>
 
       <div className="grid gap-6">
-        <Card>
+        <Card className="shadow-[0_0_48px_rgba(255,61,143,0.12)]">
           <CardHeader>
             <p className="text-muted-foreground font-mono text-xs tracking-widest uppercase">
               the form — derived
