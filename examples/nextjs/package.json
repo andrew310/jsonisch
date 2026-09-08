@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "pnpm check:api-surface && next build",
+    "check:api-surface": "node --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/api-surface-tripwire.mjs",
     "start": "next start",
     "lint": "eslint"
   },
