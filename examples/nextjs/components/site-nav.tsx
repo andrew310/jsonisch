@@ -8,12 +8,13 @@ export function SiteNav() {
         <Link href="/" className="flex items-center gap-2.5">
           {/* One artwork everywhere: the painted logo, plate removed by
               screen blending (Andrew's 🅱️ ruling — no typeset-brace
-              reconstructions). The favicon is this artwork's face crop. */}
+              reconstructions). The favicon is this artwork's face crop. logo-nav.png is the
+              tight content crop so the visual mass centers on the wordmark. */}
           <Image
-            src="/logo-screen.png"
+            src="/logo-nav.png"
             alt=""
-            width={34}
-            height={34}
+            width={39}
+            height={30}
             priority
             style={{ mixBlendMode: "screen" }}
           />

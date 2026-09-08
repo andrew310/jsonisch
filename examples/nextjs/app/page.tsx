@@ -61,14 +61,27 @@ export default function Home() {
           {/* logo-screen.png = the painted logo with blacks crushed to true
               zero (JPEG block noise lifts under screen blending); the plate
               vanishes into the dark page, glows add light as painted. */}
-          <Image
-            src="/logo-screen.png"
-            alt="The jsonisch mascot: a red database record between a cyan open brace and a pink close brace"
-            width={172}
-            height={172}
-            priority
-            style={{ mixBlendMode: "screen" }}
-          />
+          <div className="relative">
+            {/* The black-crush that kills JPEG blocks also ate the painted
+                ambient halo — this radial puts it back behind him. */}
+            <div
+              aria-hidden="true"
+              className="absolute inset-[-30%]"
+              style={{
+                background:
+                  "radial-gradient(closest-side, rgba(229,35,46,0.38), transparent 72%)",
+              }}
+            />
+            <Image
+              src="/logo-screen.png"
+              alt="The jsonisch mascot: a red database record between a cyan open brace and a pink close brace"
+              width={172}
+              height={172}
+              priority
+              className="relative"
+              style={{ mixBlendMode: "screen" }}
+            />
+          </div>
           <HeroDemo />
         </div>
       </section>
