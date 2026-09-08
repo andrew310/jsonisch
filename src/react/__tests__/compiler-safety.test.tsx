@@ -25,7 +25,7 @@ afterEach(() => {
 
 /**
  * A sum engine over the deps named in the expression (`a + b` shape) — the
- * minimal stand-in for `@rwa/formulas`.
+ * minimal stand-in for a real formula engine.
  */
 const sumEngine: CalcEngine = {
   parse: (formula) => ({

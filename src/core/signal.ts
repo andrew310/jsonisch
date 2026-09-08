@@ -2,7 +2,7 @@
  * Reactive signal primitive for jsonisch.
  *
  * A deliberately tiny push-based reactivity system built for a per-component
- * subscription model (see `@rwa/jsonisch/react` `useSignalSnapshot`):
+ * subscription model (see `jsonisch/react` `useSignalSnapshot`):
  *
  * - Reads made while a listener is active (via `withListener`, or a
  *   `Tracker`'s `read`) subscribe that listener to the signal.

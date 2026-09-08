@@ -7,8 +7,8 @@ import type { JsonSchema } from "../types";
  * already classified the node select/multiselect, so this only decides
  * WHICH picker renders and with what search filters.
  *
- * Core home since LOS-835 — bagger() classifies collections with this;
- * app widgets import it from @rwa/jsonisch.
+ * Core home — bagger() classifies collections with this; host widgets
+ * import it from the package root.
  */
 export interface RelationConfig {
   /**

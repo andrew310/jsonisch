@@ -1,14 +1,14 @@
 /**
  * The result of parsing a formula expression: the engine's opaque AST node,
- * or a parse error. Shaped after `@rwa/formulas`' `ParseResult` so the app
- * adapter is a passthrough — jsonisch itself never depends on the engine.
+ * or a parse error. Shaped so a typical engine's parse result passes
+ * through unchanged — jsonisch itself never depends on the engine.
  */
 export type CalcParseResult =
   | { readonly ok: true; readonly node: unknown }
   | { readonly ok: false; readonly error: string };
 
 /**
- * The injected calc engine (`@rwa/formulas` in the app). Method syntax on
+ * The injected calc engine, supplied by the host. Method syntax on
  * purpose: bivariant parameters let the engine's concrete AST type satisfy
  * the `unknown` node without an adapter layer —
  * `{ parse: parseFormula, evaluate: evaluateFormula, extractDependencies,

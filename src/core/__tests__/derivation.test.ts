@@ -30,7 +30,7 @@ import type {
  * Stub calc engine: each `x-formula` string keys into a registry of nodes
  * carrying their declared deps and a spyable eval function — the tests
  * exercise the derivation layer's wiring, not expression parsing (the
- * interop suite runs the real `@rwa/formulas` engine).
+ * interop suite runs a real engine when one is installed).
  *
  * NOTE: this suite runs on the REAL signal implementation (no framework
  * mock) — recompute counting and invalidation are the subject under test.
