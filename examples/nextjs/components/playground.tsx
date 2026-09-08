@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { DemoForm } from "@/components/demo-form";
+import { JsonPretty } from "@/components/json-pretty";
 import { presets } from "@/lib/presets";
 import type { JsonSchema } from "jsonisch";
 
@@ -72,12 +73,24 @@ export function Playground() {
     <div className="grid items-start gap-6 lg:grid-cols-2">
       <Card>
         <CardHeader>
+          <p className="text-muted-foreground font-mono text-xs tracking-widest uppercase">
+            the schema — runtime data
+          </p>
           <div className="flex items-center justify-between gap-3">
-            <CardTitle>The schema — a value</CardTitle>
+            <CardTitle>A value, not a type</CardTitle>
+            {/* Invalid is Close Brace pink (--destructive), never red —
+                Record Red belongs to the one primary action. */}
             {parseError ? (
-              <Badge variant="destructive">invalid JSON</Badge>
+              <Badge variant="destructive" className="font-mono">
+                invalid JSON
+              </Badge>
             ) : (
-              <Badge variant="secondary">applied</Badge>
+              <Badge
+                variant="outline"
+                className="border-brace-open/40 bg-brace-open/10 text-brace-open font-mono"
+              >
+                applied
+              </Badge>
             )}
           </div>
           <CardDescription>
@@ -101,7 +114,7 @@ export function Playground() {
           <Textarea
             aria-label="Schema editor"
             spellCheck={false}
-            className="min-h-[480px] resize-y font-mono text-xs leading-relaxed"
+            className="bg-background/60 min-h-[480px] resize-y font-mono text-xs leading-relaxed"
             value={text}
             onChange={(e) => applyText(e.target.value)}
           />
@@ -116,6 +129,9 @@ export function Playground() {
       <div className="grid gap-6">
         <Card>
           <CardHeader>
+            <p className="text-muted-foreground font-mono text-xs tracking-widest uppercase">
+              the form — derived
+            </p>
             <CardTitle>{title}</CardTitle>
             <CardDescription>{description}</CardDescription>
           </CardHeader>
@@ -131,17 +147,20 @@ export function Playground() {
         {submitted ? (
           <Card>
             <CardHeader>
-              <CardTitle>Submitted output</CardTitle>
+              <p className="text-muted-foreground font-mono text-xs tracking-widest uppercase">
+                submitted output
+              </p>
+              <CardTitle>What onSubmit received</CardTitle>
               <CardDescription>
-                What <code>onSubmit</code> received. Derived fields (the ones
-                with an <code>x-formula</code>) are absent — computed values
-                never enter the payload.
+                Derived fields (the ones with an <code>x-formula</code>) are
+                absent — computed values never enter the payload.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <pre className="bg-muted overflow-x-auto rounded-md p-4 font-mono text-xs leading-relaxed">
-                {JSON.stringify(submitted, null, 2)}
-              </pre>
+              <JsonPretty
+                value={submitted}
+                className="bg-background/60 rounded-md p-4 text-xs leading-relaxed"
+              />
             </CardContent>
           </Card>
         ) : null}

@@ -1,23 +1,113 @@
-import { Playground } from "@/components/playground";
+import Image from "next/image";
+import Link from "next/link";
+import { CodeExample } from "@/components/code-example";
+import { CopyChip } from "@/components/copy-chip";
+import { HeroDemo } from "@/components/hero-demo";
+
+// Real facts only — each highlight is a claim the README makes.
+const highlights = [
+  {
+    title: "zero runtime dependencies",
+    body: "The core store depends on nothing and is DOM-free. React is an optional peer.",
+  },
+  {
+    title: "bring your own components",
+    body: "jsonisch ships no widgets. Register yours once, keyed by control kind — every schema a tenant can invent renders through that one registry.",
+  },
+  {
+    title: "injected validation",
+    body: "The validator interface is deliberately AJV-shaped: a compiled AJV validate function passes through unchanged.",
+  },
+  {
+    title: "derived values by construction",
+    body: "Formula fields evaluate through a calc engine you inject — and stay out of dirty-tracking and the submit payload by construction.",
+  },
+];
 
 export default function Home() {
   return (
-    <main className="mx-auto max-w-6xl px-6 py-10">
-      <header className="mb-8 grid gap-2">
-        <p className="text-muted-foreground font-mono text-sm">jsonisch</p>
-        <h1 className="text-3xl font-semibold tracking-tight">
-          Schemas as values
-        </h1>
-        <p className="text-muted-foreground max-w-2xl text-sm leading-relaxed">
-          The JSON-Schema on the left is runtime data — the kind that lives in
-          a database row or arrives from an agent. The form on the right is
-          derived from it: shadcn widgets dispatched by control kind, AJV
-          validation on submit, and a derived field evaluated through a tiny
-          calc engine this demo injects (jsonisch has no expression language
-          of its own).
-        </p>
-      </header>
-      <Playground />
+    <main>
+      <section className="mx-auto grid max-w-6xl items-start gap-12 px-6 pt-16 pb-20 lg:grid-cols-[1.1fr_1fr] lg:gap-16 lg:pt-24">
+        <div className="grid gap-6 lg:self-center">
+          <p className="text-muted-foreground font-mono text-sm">
+            v0.1.1 · zero runtime dependencies · MIT
+          </p>
+          <h1 className="text-5xl font-semibold tracking-tight text-balance sm:text-6xl">
+            Schemas as{" "}
+            <span className="font-mono font-medium whitespace-nowrap">
+              <span className="text-brace-open glow-brace-open">{"{"}</span>{" "}
+              values{" "}
+              <span className="text-brace-close glow-brace-close">{"}"}</span>
+            </span>
+          </h1>
+          <p className="text-muted-foreground max-w-xl text-lg leading-relaxed">
+            {
+              "Reactive forms derived from JSON-Schema that's runtime data — stored in your database, customized by your admins, or written by an LLM a second ago. Bring your own components."
+            }
+          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <Link
+              href="/playground"
+              className="glow-red bg-primary text-primary-foreground hover:bg-primary/90 inline-flex h-11 items-center rounded-md px-6 text-sm font-medium transition-colors"
+            >
+              Open the playground
+            </Link>
+            <CopyChip text="pnpm add jsonisch" />
+          </div>
+        </div>
+        <div className="grid justify-items-center gap-5">
+          <Image
+            src="/logo.jpg"
+            alt="The jsonisch mascot: a red database record between a cyan open brace and a pink close brace"
+            width={132}
+            height={132}
+            priority
+            className="rounded-2xl"
+            style={{ filter: "drop-shadow(0 0 32px var(--glow-red))" }}
+          />
+          <HeroDemo />
+        </div>
+      </section>
+
+      <section className="border-border/60 border-t">
+        <div className="mx-auto grid max-w-6xl gap-x-8 gap-y-10 px-6 py-16 sm:grid-cols-2 lg:grid-cols-4">
+          {highlights.map((highlight) => (
+            <div key={highlight.title} className="grid content-start gap-2">
+              <h2 className="font-mono text-sm font-medium">
+                {highlight.title}
+              </h2>
+              <p className="text-muted-foreground text-sm leading-relaxed">
+                {highlight.body}
+              </p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="border-border/60 border-t">
+        <div className="mx-auto grid max-w-4xl gap-8 px-6 py-16">
+          <div className="grid gap-2">
+            <p className="text-muted-foreground font-mono text-xs tracking-widest uppercase">
+              quickstart
+            </p>
+            <h2 className="text-3xl font-semibold tracking-tight">
+              One registry. Every schema.
+            </h2>
+            <p className="text-muted-foreground max-w-2xl leading-relaxed">
+              Write plain controlled widgets, register them once with a
+              validator, and every form is two lines — no matter what schema
+              shows up.
+            </p>
+          </div>
+          <CodeExample />
+          <Link
+            href="/playground"
+            className="text-brace-open justify-self-start font-mono text-sm hover:underline"
+          >
+            Try it in the playground →
+          </Link>
+        </div>
+      </section>
     </main>
   );
 }

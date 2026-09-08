@@ -25,7 +25,10 @@ export function DemoForm({
     <Form of={form} onSubmit={(output) => onSubmit(output)} className="grid gap-5">
       <Fields of={form} />
       <div>
-        <Button type="submit">Submit</Button>
+        {/* The one Record Red action in this view (brand rule, issue #23). */}
+        <Button type="submit" className="glow-red">
+          Submit
+        </Button>
       </div>
     </Form>
   );
