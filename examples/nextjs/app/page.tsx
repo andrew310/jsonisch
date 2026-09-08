@@ -58,11 +58,11 @@ export default function Home() {
           </div>
         </div>
         <div className="grid justify-items-center gap-4">
-          {/* The painted logo is glow-on-black; screen blending makes its
-              black plate mathematically vanish into the dark page — no
-              cutout (which washes the glows) and no visible box edge. */}
+          {/* logo-screen.png = the painted logo with blacks crushed to true
+              zero (JPEG block noise lifts under screen blending); the plate
+              vanishes into the dark page, glows add light as painted. */}
           <Image
-            src="/logo.jpg"
+            src="/logo-screen.png"
             alt="The jsonisch mascot: a red database record between a cyan open brace and a pink close brace"
             width={172}
             height={172}
