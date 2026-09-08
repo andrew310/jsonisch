@@ -32,9 +32,10 @@ Most form libraries assume the shape of your form is known at build time —
 a Zod schema in a module, types inferred from it, a hand-written component
 per field. That assumption breaks the moment your app lets users customize
 their forms: now the schema is a **value**, fetched from a database at
-request time, different per tenant, edited without a deploy. There is no
-compile-time type to infer against, and nobody is hand-writing a component
-per field for a form that didn't exist yesterday.
+request time, different per tenant, edited without a deploy — or written
+by an LLM a second ago. There is no compile-time type to infer against,
+and nobody is hand-writing a component per field for a form that didn't
+exist yesterday.
 
 `jsonisch` starts from that world. It takes a JSON-Schema value, walks it
 once, and gives you a fully reactive, validated form with the fields already
@@ -54,6 +55,13 @@ wired:
   walk, not by per-field wiring.
 
 You bring the components; it brings everything else.
+
+That last part matters more in the age of agents. The cheapest thing a
+model can produce is a JSON value — and a JSON-Schema value is a complete
+form definition. An agent that needs structured input from a human can
+emit a schema and have a validated, fully wired form on screen in the
+same request: no codegen, no deploy, and the schema it wrote is the same
+contract that validates what the human sends back.
 
 ---
 
