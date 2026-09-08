@@ -11,6 +11,8 @@
 
 **Status: experimental.** The API is in production in one app. It is not frozen.
 
+**Live**: [jsonisch.vercel.app](https://jsonisch.vercel.app) — edit a schema, watch the form.
+
 ```sh
 pnpm add jsonisch
 # npm install jsonisch
