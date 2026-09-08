@@ -76,7 +76,7 @@ function hasType(schema: JsonSchema, type: string): boolean {
 
 /**
  * Reads the widget extras (role, traits filter, …) that ride as sibling
- * keys on both relation forms — `x-relation` namespace first, legacy flat
+ * keys on both relation forms — `x-relation` namespace first, flat vendor
  * keys as fallback.
  */
 function readExtras(record: Record<string, unknown>): {
@@ -111,7 +111,7 @@ function readExtras(record: Record<string, unknown>): {
  * select/multiselect. Two schema forms:
  *   1. Canonical — `$ref: schema://<target>` (one) or array of that ref
  *      (many); widget extras ride as sibling keys.
- *   2. Vendor — `x-relation` namespace or legacy `x-relation-target`;
+ *   2. Vendor — `x-relation` namespace or flat `x-relation-target`;
  *      cardinality follows the node's `type` unless `multiple` overrides.
  */
 export function readRelationConfig(
@@ -133,7 +133,7 @@ export function readRelationConfig(
     return { target: itemTarget, many: true, ...extras };
   }
 
-  // Form 2: x-relation namespace / legacy flat keys. `items` carries the
+  // Form 2: x-relation namespace / flat vendor keys. `items` carries the
   // stage-configured "fields on this record" sub-schema when the stage
   // loader replaced the bare ref with real item properties.
   const ns = record["x-relation"];
@@ -225,7 +225,7 @@ function propertiesAtParent(
  */
 const HIDDEN_STRING: JsonSchema = {
   type: "string",
-  "x-field-type": "hidden",
+  "x-ui": { control: "hidden" },
 } as JsonSchema;
 
 const PARTY_IDENTITY_PROPS: Record<string, JsonSchema> = {
@@ -234,7 +234,7 @@ const PARTY_IDENTITY_PROPS: Record<string, JsonSchema> = {
   name: HIDDEN_STRING,
   kind: HIDDEN_STRING,
   // Entity members ride as an opaque array (no item schema → value leaf)
-  members: { type: "array", "x-field-type": "hidden" } as JsonSchema,
+  members: { type: "array", "x-ui": { control: "hidden" } } as JsonSchema,
 };
 
 const ASSET_IDENTITY_PROPS: Record<string, JsonSchema> = {

@@ -37,13 +37,13 @@ const doubleEngine: CalcEngine = {
 
 const estimateSchema = objectSchema({
   a: { type: "number" },
-  fee: { type: "number", "x-field-type": "computed", "x-formula": "double" },
+  fee: { type: "number", "x-ui": { control: "estimate" }, "x-formula": "double" },
 });
 
 const amountOrPercentSchema = objectSchema({
   cost: {
     type: "string",
-    "x-field-type": "hybrid",
+    "x-ui": { control: "amount-or-percent" },
     "x-hybrid-default-denominator": "loanAmount",
   },
 });

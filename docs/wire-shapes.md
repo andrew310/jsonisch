@@ -5,7 +5,7 @@ envelope on their own key** — there are no `<key>Source`/`<key>Hybrid`
 sibling keys anywhere on the wire:
 
 ```jsonc
-// estimate (control "estimate", x-field-type "computed")
+// estimate (control "estimate")
 "totalProjectBudget": {
   "kind": "estimate",
   "value": 60000,
@@ -16,7 +16,7 @@ sibling keys anywhere on the wire:
 // formula-owned: NO value key — the server recompute authors it
 "totalProjectBudget": { "kind": "estimate", "mode": "formula" }
 
-// amount-or-percent (control "amount-or-percent", x-field-type "hybrid")
+// amount-or-percent (control "amount-or-percent")
 "initialDisbursement": {
   "kind": "amount-or-percent",
   "value": 12500,

@@ -15,7 +15,6 @@ const TRAY_SCHEMA = {
   properties: {
     assets: {
       type: "array",
-      "x-field-type": "relation",
       "x-relation-target": "asset",
       items: {
         type: "object",
@@ -43,13 +42,12 @@ const ESTIMATE_SCHEMA = {
   properties: {
     assets: {
       type: "array",
-      "x-field-type": "relation",
       "x-relation-target": "asset",
       items: {
         type: "object",
         properties: {
           id: { type: "string" },
-          arv: { type: "number", "x-field-type": "estimate" },
+          arv: { type: "number", "x-ui": { control: "estimate" } },
         },
       },
     },

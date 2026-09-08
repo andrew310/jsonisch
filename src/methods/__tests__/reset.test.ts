@@ -176,7 +176,7 @@ describe("reset", () => {
 
     const store = createTestStore(
       objectSchema({
-        fee: { type: "number", "x-field-type": "computed" },
+        fee: { type: "number", "x-ui": { control: "estimate" } },
       }),
       {
         initialInput: {

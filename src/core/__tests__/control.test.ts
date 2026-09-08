@@ -2,94 +2,42 @@ import { describe, expect, test } from "vitest";
 import { inferControl } from "../control";
 
 describe("inferControl", () => {
-  describe("settled vocabulary translation (legacy x-field-type)", () => {
-    test("should translate calculated to formula", () => {
+  describe("explicit x-ui.control", () => {
+    test("should read the derived-field kinds", () => {
       expect(
-        inferControl({ type: "number", "x-field-type": "calculated" }),
+        inferControl({ type: "number", "x-ui": { control: "formula" } }),
       ).toBe("formula");
-    });
-
-    test("should translate computed to estimate", () => {
       expect(
-        inferControl({ type: "number", "x-field-type": "computed" }),
+        inferControl({ type: "number", "x-ui": { control: "estimate" } }),
       ).toBe("estimate");
-    });
-
-    test("should translate hybrid to amount-or-percent", () => {
-      expect(inferControl({ type: "number", "x-field-type": "hybrid" })).toBe(
-        "amount-or-percent",
-      );
-    });
-
-    test("should translate ledger to line-item", () => {
-      expect(inferControl({ type: "number", "x-field-type": "ledger" })).toBe(
-        "line-item",
-      );
-    });
-
-    test("should translate widget-style legacy names", () => {
       expect(
-        inferControl({ type: "string", "x-field-type": "date-picker" }),
-      ).toBe("date");
-      expect(
-        inferControl({ type: "array", "x-field-type": "multi-select" }),
-      ).toBe("multiselect");
-      expect(
-        inferControl({ type: "array", "x-field-type": "checkbox-group" }),
-      ).toBe("multiselect");
-      expect(
-        inferControl({ type: "string", "x-field-type": "us-state-select" }),
-      ).toBe("us-state");
-      expect(
-        inferControl({ type: "array", "x-field-type": "address-array" }),
-      ).toBe("address");
-      expect(
-        inferControl({ type: "boolean", "x-field-type": "checkbox" }),
-      ).toBe("boolean");
-      expect(inferControl({ type: "boolean", "x-field-type": "switch" })).toBe(
-        "boolean",
-      );
-    });
-
-    test("should pass settled names through unchanged", () => {
-      expect(inferControl({ type: "number", "x-field-type": "formula" })).toBe(
-        "formula",
-      );
-      expect(inferControl({ type: "number", "x-field-type": "estimate" })).toBe(
-        "estimate",
-      );
-      expect(
-        inferControl({ type: "number", "x-field-type": "amount-or-percent" }),
+        inferControl({
+          type: "number",
+          "x-ui": { control: "amount-or-percent" },
+        }),
       ).toBe("amount-or-percent");
       expect(
-        inferControl({ type: "number", "x-field-type": "line-item" }),
+        inferControl({ type: "number", "x-ui": { control: "line-item" } }),
       ).toBe("line-item");
+    });
+
+    test("should fall through to inference on an unknown control name", () => {
+      expect(
+        inferControl({ type: "number", "x-ui": { control: "calculated" } }),
+      ).toBe("number");
+      expect(
+        inferControl({ type: "string", "x-field-type": "textarea" }),
+      ).toBe("text");
     });
 
     test("should promote a formula with estimate: true to estimate", () => {
       expect(
         inferControl({
           type: "number",
-          "x-field-type": "formula",
+          "x-ui": { control: "formula" },
           estimate: true,
         }),
       ).toBe("estimate");
-      expect(
-        inferControl({
-          type: "number",
-          "x-field-type": "calculated",
-          estimate: true,
-        }),
-      ).toBe("estimate");
-    });
-
-    test("should read x-ui.control with the same translation", () => {
-      expect(
-        inferControl({ type: "number", "x-ui": { control: "calculated" } }),
-      ).toBe("formula");
-      expect(
-        inferControl({ type: "number", "x-ui": { control: "formula" } }),
-      ).toBe("formula");
     });
 
     test("should let an explicit control win over format", () => {
@@ -97,7 +45,7 @@ describe("inferControl", () => {
         inferControl({
           type: "string",
           format: "email",
-          "x-field-type": "textarea",
+          "x-ui": { control: "textarea" },
         }),
       ).toBe("textarea");
     });
@@ -137,7 +85,7 @@ describe("inferControl", () => {
       ).toBe("select");
     });
 
-    test("should resolve legacy flat x-relation-target", () => {
+    test("should resolve flat vendor x-relation-target", () => {
       expect(
         inferControl({ type: "array", "x-relation-target": "contact" }),
       ).toBe("multiselect");

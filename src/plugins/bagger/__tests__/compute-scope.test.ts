@@ -7,7 +7,6 @@ const SCHEMA = {
     termMonths: { type: "number" },
     assets: {
       type: "array",
-      "x-field-type": "relation",
       "x-relation-target": "asset",
       items: { type: "object", properties: { id: { type: "string" } } },
     },
@@ -76,7 +75,6 @@ const STAGE_WITHOUT_ASSETS = {
     termMonths: { type: "number" },
     borrowers: {
       type: "array",
-      "x-field-type": "relation",
       "x-relation-target": "party",
     },
   },
