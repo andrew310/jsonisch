@@ -8,16 +8,15 @@
  * task can call it identically from a plugin's `build` and from any
  * engine-less reader.
  */
+import { DEFAULT_RECORD_HANDLE } from "../../core/form/create-form-store";
 import { readRelationConfig } from "../../core/relation/relation-config";
 import type { JsonSchema } from "../../core/types/schema";
 import { envelopesWire, isEnvelope } from "../envelopes/wire";
 
 const DEFAULT_BAG = "data";
-const DEFAULT_HANDLE = "loan";
 
 export interface BaggerOptions {
   bag?: string;
-  handle?: string;
   /**
    * Second classification source for row collections, union-ed with the
    * walked schema's own relation nodes (`collectionKeys`). The host passes
@@ -25,6 +24,16 @@ export interface BaggerOptions {
    * the record, not of the stage being rendered.
    */
   collectionsSchema?: JsonSchema;
+}
+
+/**
+ * `computeBag` is store-less, so the handle key arrives as an option here;
+ * the plugin threads `form.recordHandle` through (the one home — the
+ * plugin deliberately has NO handle option of its own, so the alias writer
+ * and the row-scope reader can never disagree).
+ */
+export interface ComputeBagOptions extends BaggerOptions {
+  handle?: string;
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -39,7 +48,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  *   walked schema does not configure. A stage that renders no assets tray
  *   still needs `assets` on the shelf as FLATTENED rows — left raw, every
  *   bag-resident key (`assignmentFee`) reads undefined per row and
- *   `SUM(assets[assignmentFee])` or a loan check silently computes 0.
+ *   `SUM(assets[assignmentFee])` or a check silently computes 0.
  * - The walked schema alone declares relations the dataset schema lacks:
  *   registry-role slugs and fallback defs are synthesized per stage
  *   (`buildStageSchemaFromConfig`), so replacing rather than union-ing
@@ -97,15 +106,15 @@ function unwrapEnvelopes(
  * Computes the off-form value bag for a canonical record: every declared
  * scalar and relation collection, bag-merged and envelope-unwrapped, plus
  * a `handle` alias holding the whole computed scope (so a formula or
- * widget can address `loan.termMonths` as readily as bare `termMonths`).
+ * widget can address `record.termMonths` as readily as bare `termMonths`).
  */
 export function computeBag(
   schema: JsonSchema,
   record: Record<string, unknown>,
-  opts?: BaggerOptions,
+  opts?: ComputeBagOptions,
 ): Record<string, unknown> {
   const bag = opts?.bag ?? DEFAULT_BAG;
-  const handle = opts?.handle ?? DEFAULT_HANDLE;
+  const handle = opts?.handle ?? DEFAULT_RECORD_HANDLE;
 
   const scope = unwrapEnvelopes(flattenSourceRow(record, bag));
 

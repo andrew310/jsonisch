@@ -110,7 +110,7 @@ export function derivation(
       // A row's scope is its own record: live siblings in the SAME row win,
       // the canonical row from `offFormValues` (matched by `id`) fills what
       // the write model does not hold, and the parent-record handle rides
-      // under `loan` — the precedence the server's own per-row recompute
+      // under the record handle — the precedence a server-side per-row recompute
       // evaluates against. Root-level form fields are deliberately NOT in
       // scope: a row formula that reached across into the document would
       // compute a different number here than on the server.

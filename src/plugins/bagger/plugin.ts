@@ -39,7 +39,7 @@ import {
   type BaggerOptions,
 } from "./compute-scope";
 
-export type { BaggerOptions } from "./compute-scope";
+export type { BaggerOptions, ComputeBagOptions } from "./compute-scope";
 export { collectionKeys, computeBag } from "./compute-scope";
 
 /**
@@ -170,13 +170,19 @@ export function bagger(
     key: baggerKey,
     dependsOn: [envelopesKey],
 
-    build(_form, config): BaggerState {
+    build(form, config): BaggerState {
       // `config.schema`, not `form.schema` — `initializeFieldStore` (the
       // walk that sets the root store's `schema`) runs AFTER every
       // plugin's `build` (`create-form-store.ts`), so `form.schema` is
       // still undefined here.
       const schema = config.schema;
-      const scope = computeBag(schema, record, opts);
+      // The handle comes from the store, never from a plugin option — the
+      // alias this writes and the reserved word row scope resolves must be
+      // the same key by construction.
+      const scope = computeBag(schema, record, {
+        ...opts,
+        handle: form.recordHandle,
+      });
       const rowsByField = new Map<string, Map<string, Record<string, unknown>>>();
       // Same classification as the shelf (`collectionKeys`) — a key the
       // dataset schema calls a collection and the stage schema does not

@@ -14,7 +14,7 @@ import { findRowStore, resolveRowScopeValue } from "./row-scope";
  * the form value wins (a formula field resolves through its derived
  * signal, so the read is always fresh; an erroring formula resolves
  * `undefined`, never a stale number), `offFormValues` fills what the form
- * does not hold (an off-stage field still resolves from the loan canon).
+ * does not hold (an off-stage field still resolves from the canonical record).
  *
  * For widget-side scalar reads (e.g. an amount-or-percent field resolving
  * its percent basis). Collection overlay semantics stay inside the
@@ -57,7 +57,7 @@ export function resolveScopeValue(
  *
  * - inside an array row, the ROW's scope (live siblings in the same row →
  *   the canonical row from `offFormValues` matched by `id` → the parent
- *   record handle under `loan`), so a per-row formula's inputs are ITS
+ *   record handle under the form's `recordHandle`), so a per-row formula's inputs are ITS
  *   row's values;
  * - anywhere else, the document scope (`resolveScopeValue`).
  *

@@ -43,8 +43,13 @@ describe("computeBag", () => {
     expect((scope.assets as Array<Record<string, unknown>>)[0]!.arv).toBe(900);
   });
 
-  test("whole scope aliases under the handle key", () => {
+  test("whole scope aliases under `record` by default", () => {
     const scope = computeBag(SCHEMA, { termMonths: 12 });
+    expect((scope.record as Record<string, unknown>).termMonths).toBe(12);
+  });
+
+  test("whole scope aliases under a configured handle key", () => {
+    const scope = computeBag(SCHEMA, { termMonths: 12 }, { handle: "loan" });
     expect((scope.loan as Record<string, unknown>).termMonths).toBe(12);
   });
 

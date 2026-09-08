@@ -376,14 +376,14 @@ describe("row-scope visibility (LOS-722 / LOS-819)", () => {
   });
 
   test("bracket-form trigger reads the record handle in a row scope (LOS-819)", () => {
-    const form = createTestStore(traySchema("loan[transaction_type]"), {
+    const form = createTestStore(traySchema("record[transaction_type]"), {
       initialInput: { assets: [{ id: "a1" }] },
-      offFormValues: { loan: { transaction_type: "purchase" } },
+      offFormValues: { record: { transaction_type: "purchase" } },
     });
     const gated = getFieldStore(form, ["assets", 0, "gated"]);
     expect(gated.visible?.value).toBe(true);
 
-    setOffFormValues(form, { loan: { transaction_type: "refinance" } });
+    setOffFormValues(form, { record: { transaction_type: "refinance" } });
     expect(gated.visible?.value).toBe(false);
   });
 });

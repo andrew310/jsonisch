@@ -51,7 +51,7 @@ export function setEntryMode(form: FormRef, path: Path, mode: EntryMode): void {
 }
 
 /**
- * Sets the percent basis of an amount-or-percent field (the loan field key
+ * Sets the percent basis of an amount-or-percent field (the root-level field key
  * the percent is taken of). Dirties the meta half; keeping the resolved
  * dollar amount constant against the new basis is the widget's job.
  *

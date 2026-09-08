@@ -58,4 +58,4 @@ export type {
   SeverityConfig,
 } from "./checks/plugin";
 export { flattenSourceRow } from "./bagger/compute-scope";
-export type { BaggerOptions, BaggerState } from "./bagger/plugin";
+export type { BaggerOptions, BaggerState, ComputeBagOptions } from "./bagger/plugin";

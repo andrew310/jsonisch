@@ -168,6 +168,7 @@ describe.skipIf(!engine)("derivation with the real @rwa/formulas engine", () => 
           }),
         },
       }),
+      recordHandle: "loan",
       initialInput: { assets: [{ id: "a1", estimatedAiv: 300_000 }] },
       offFormValues: {
         loan: { commitment: 1_200_000 },

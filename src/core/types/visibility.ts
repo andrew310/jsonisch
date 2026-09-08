@@ -21,8 +21,8 @@ export type VisibleWhenOp =
 export interface VisibleWhen {
   /**
    * The watched field reference: a root-level field key, or the
-   * record-handle bracket form `loan[key]` reading `key` off the object
-   * stored under `loan` in the eval scope (the parent-record handle the
+   * record-handle bracket form (`record[key]` by default) reading `key` off the
+   * object stored under the form's `recordHandle` in the eval scope (the
    * host layers into `offFormValues` — LOS-463/LOS-471).
    */
   readonly field: string;

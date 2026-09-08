@@ -16,6 +16,13 @@ import type { FormConfig, InternalFormStore } from "../types";
 export const DEFAULT_EMPTY_INPUT: Record<string, unknown> = { string: "" };
 
 /**
+ * The default parent-record handle key (`FormConfig.recordHandle`). The
+ * store's resolved `recordHandle` is the one home at runtime; this default
+ * exists so store-less readers (`computeBag`) resolve identically.
+ */
+export const DEFAULT_RECORD_HANDLE = "record";
+
+/**
  * Creates a new internal form store from the provided configuration: walks
  * the JSON-Schema once and builds the field-store tree (`kind:
  * array|object|value`), with the schema as the allow-list — `initialInput`
@@ -45,6 +52,10 @@ export function createFormStore(config: FormConfig): InternalFormStore {
   // Merge configured empty input on top of the defaults before initializing
   // so the field stores can read it from the form store
   store.emptyInput = { ...DEFAULT_EMPTY_INPUT, ...config.emptyInput };
+
+  // Resolve the parent-record handle before plugin `build` runs — the
+  // bagger's shelf alias reads it there
+  store.recordHandle = config.recordHandle ?? DEFAULT_RECORD_HANDLE;
 
   // Set validation config (validator injected pre-compiled, once per schema)
   store.validator = config.validator;

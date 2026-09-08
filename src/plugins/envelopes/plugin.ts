@@ -461,7 +461,7 @@ declare module "../../react/types" {
      */
     readonly setEntryMode: (mode: EntryMode) => void;
     /**
-     * The percent basis of an amount-or-percent field (a loan field key).
+     * The percent basis of an amount-or-percent field (a root-level field key).
      */
     readonly percentBasis: string | undefined;
     /**

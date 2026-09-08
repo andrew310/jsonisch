@@ -24,7 +24,7 @@ export interface CheckScope {
    * One key through the derivation closure (LOS-514): when BOTH the
    * canonical side and the live side are arrays, mergeCollectionRows;
    * otherwise live wins and offForm / plugin collections fill only
-   * `undefined`. A record handle like `loan` is a plain object — get
+   * `undefined`. A record handle like `record` is a plain object — get
    * returns that object, never an empty array.
    */
   get(key: string): unknown;

@@ -35,7 +35,7 @@ export interface CalcEngine {
   /**
    * Extracts `collection[field]` reference pairs. Optional: when present, a
    * formula with at least one such reference is classified a rollup (the
-   * stricter-persistence set). A scalar record handle (`loan[…]`) uses the
+   * stricter-persistence set). A scalar record handle (`record[…]`) uses the
    * same syntax and currently also flags — shape-aware refinement belongs
    * to the persistence-rule slice.
    */

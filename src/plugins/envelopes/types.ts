@@ -124,7 +124,7 @@ export interface HybridSlot {
    */
   readonly entryMode: ReadonlySignal<EntryMode>;
   /**
-   * The current percent basis (a loan field key), or `undefined` when the
+   * The current percent basis (a root-level field key), or `undefined` when the
    * schema declares no default and none was stored.
    */
   readonly percentBasis: ReadonlySignal<string | undefined>;

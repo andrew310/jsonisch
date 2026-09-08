@@ -976,7 +976,7 @@ describe("derivation", () => {
       ).toBe(14);
     });
 
-    test("should resolve the parent record handle under `loan`", () => {
+    test("should re-resolve rows from a fresher parent record (configured handle)", () => {
       const exprs = {
         share: stub(
           ["landValue", "loan"],
@@ -996,6 +996,7 @@ describe("derivation", () => {
             }),
           },
         }),
+        recordHandle: "loan",
         initialInput: { assets: [{ id: "a1", landValue: 250 }] },
         offFormValues: { loan: { commitment: 1000 } },
         plugins: testPlugins(makeEngine(exprs)),
@@ -1004,6 +1005,61 @@ describe("derivation", () => {
 
       // A fresher parent record re-resolves the row
       setOffFormValues(store, { loan: { commitment: 500 } });
+      expect(derivedAt(store, ["assets", 0, "share"]).value).toBe(0.5);
+    });
+
+    test("should resolve the parent record handle under the default `record` key", () => {
+      const exprs = {
+        share: stub(
+          ["landValue", "record"],
+          (s) =>
+            num(s.landValue) /
+            num((s.record as Record<string, unknown> | undefined)?.commitment),
+        ),
+      };
+      const store = createFormStore({
+        schema: objectSchema({
+          assets: {
+            type: "array",
+            items: objectSchema({
+              id: { type: "string" },
+              landValue: { type: "number" },
+              share: formulaField("share"),
+            }),
+          },
+        }),
+        initialInput: { assets: [{ id: "a1", landValue: 250 }] },
+        offFormValues: { record: { commitment: 1000 } },
+        plugins: testPlugins(makeEngine(exprs)),
+      });
+      expect(derivedAt(store, ["assets", 0, "share"]).value).toBe(0.25);
+    });
+
+    test("should resolve the parent record handle under a configured `recordHandle`", () => {
+      const exprs = {
+        share: stub(
+          ["landValue", "invoice"],
+          (s) =>
+            num(s.landValue) /
+            num((s.invoice as Record<string, unknown> | undefined)?.commitment),
+        ),
+      };
+      const store = createFormStore({
+        schema: objectSchema({
+          assets: {
+            type: "array",
+            items: objectSchema({
+              id: { type: "string" },
+              landValue: { type: "number" },
+              share: formulaField("share"),
+            }),
+          },
+        }),
+        recordHandle: "invoice",
+        initialInput: { assets: [{ id: "a1", landValue: 250 }] },
+        offFormValues: { invoice: { commitment: 500 } },
+        plugins: testPlugins(makeEngine(exprs)),
+      });
       expect(derivedAt(store, ["assets", 0, "share"]).value).toBe(0.5);
     });
 
@@ -1116,6 +1172,7 @@ describe("derivation", () => {
             }),
           },
         }),
+        recordHandle: "loan",
         initialInput: {
           landValue: 5,
           assets: [{ id: "a1", landValue: 100, buildingValue: 50 }],

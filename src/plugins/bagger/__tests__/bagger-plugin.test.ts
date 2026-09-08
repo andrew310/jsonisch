@@ -78,7 +78,19 @@ describe("bagger()", () => {
     const form = makeForm();
     const shelf = form.offFormValues.value as Record<string, unknown>;
     expect(Array.isArray(shelf.assets)).toBe(true);
-    expect((shelf.loan as Record<string, unknown>).assets).toBeDefined();
+    expect((shelf.record as Record<string, unknown>).assets).toBeDefined();
+  });
+
+  test("the shelf's handle alias follows the form's recordHandle", () => {
+    const form = createFormStore({
+      schema: TRAY_SCHEMA,
+      recordHandle: "invoice",
+      initialInput: { assets: [{ id: "a1" }] },
+      plugins: [envelopes(), bagger(RECORD), visibility()],
+    });
+    const shelf = form.offFormValues.value as Record<string, unknown>;
+    expect((shelf.invoice as Record<string, unknown>).assets).toBeDefined();
+    expect(shelf.record).toBeUndefined();
   });
 
   test("visibility resolves an unrendered trigger through canon's shelf", () => {

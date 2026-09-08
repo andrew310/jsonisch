@@ -9,14 +9,6 @@ import type {
 import { derivationKey } from "./key";
 
 /**
- * The eval-scope key the parent-record handle rides under. A row formula
- * reads the loan through the bracket form (`loan[total_commitment]`), whose
- * base identifier is this key — the same shape the server's
- * `computeAssetDerivedFields` builds.
- */
-const RECORD_HANDLE_KEY = "loan";
-
-/**
  * Returns the INNERMOST array-item object store containing the field at the
  * given path, or `undefined` when the path is not inside an array row (a
  * root-level field, or a field under a plain nested object).
@@ -102,8 +94,9 @@ export function canonicalRowOf(
  * Resolves a row-scope dependency once the LIVE row value is already in
  * hand — the precedence a per-row formula evaluates in:
  *
- *   1. the `loan` record handle from `offFormValues` (it wins outright: a
- *      row column named `loan` is never the parent-record handle),
+ *   1. the record handle (`form.recordHandle`) from `offFormValues` (it
+ *      wins outright: a row column named like the handle is never the
+ *      parent-record handle),
  *   2. the live sibling value in the SAME row (an explicit `null` counts —
  *      only `undefined` means "the row does not hold this"),
  *   3. the canonical row's column.
@@ -125,11 +118,8 @@ export function resolveRowFallback(
   key: string,
   formValue: unknown,
 ): unknown {
-  if (key === RECORD_HANDLE_KEY) {
-    const handle = readOwn(
-      internalFormStore.offFormValues.value,
-      RECORD_HANDLE_KEY,
-    );
+  if (key === internalFormStore.recordHandle) {
+    const handle = readOwn(internalFormStore.offFormValues.value, key);
     if (handle && typeof handle === "object") return handle;
   }
   if (formValue !== undefined) return formValue;
