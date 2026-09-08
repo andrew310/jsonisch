@@ -28,6 +28,7 @@ const KNOWN_MEMBERS = new Set([
   "transferField",
   "swapField",
   "fieldIsDirty",
+  "fieldIsOutput",
   "encodeValue",
   "isDirty",
   "fieldSnapshot",
@@ -47,6 +48,7 @@ const HOOK_NAMES = [
   "transferField",
   "swapField",
   "fieldIsDirty",
+  "fieldIsOutput",
   "encodeValue",
   "isDirty",
   "fieldSnapshot",
@@ -362,6 +364,29 @@ export function fieldPluginDirty(
     }
   }
   return dirty;
+}
+
+/**
+ * Whether THIS value leaf is a derived OUTPUT (its key is absent from the
+ * input projections by construction). Reads every implementer for the same
+ * no-short-circuit reason as `fieldPluginDirty` — callers sit inside
+ * computeds and tracked snapshot reads.
+ */
+export function fieldIsOutput(
+  form: InternalFormStore,
+  store: InternalValueStore,
+): boolean {
+  let output = false;
+  for (const plugin of form.pluginDriver?.hooks.fieldIsOutput ?? []) {
+    if (
+      attributed(plugin, "fieldIsOutput", () =>
+        plugin.fieldIsOutput!(ctxOf(form, plugin), store),
+      )
+    ) {
+      output = true;
+    }
+  }
+  return output;
 }
 
 /**

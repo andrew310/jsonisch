@@ -204,6 +204,15 @@ export interface JsonischPlugin<TState = unknown> {
   fieldIsDirty?(ctx: PluginCtx<TState>, store: InternalValueStore): boolean;
 
   /**
+   * 8b — whether THIS value field is a derived OUTPUT: the input
+   * projections (`getInput`, the validated submit output, the dirty
+   * whole-array emission) assemble around it, so its key is ABSENT from
+   * payloads instead of riding as own-key `undefined`. Only object
+   * ASSEMBLY consults this — a path-targeted leaf read stays raw.
+   */
+  fieldIsOutput?(ctx: PluginCtx<TState>, store: InternalValueStore): boolean;
+
+  /**
    * 9 — wraps a value field's own payload entry (the LOS-573 envelope):
    * called for a dirty leaf with its outgoing value (`undefined` when only
    * the plugin half is dirty), returns the wire entry to emit — or

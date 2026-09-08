@@ -62,7 +62,7 @@
     "build": "tsdown",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "prepublishOnly": "pnpm test && pnpm typecheck && pnpm build"
+    "prepublishOnly": "pnpm test && pnpm typecheck && pnpm build && node scripts/check-dist-augmentations.mjs"
   },
   "peerDependencies": {
     "react": "^19.0.0"

@@ -15,5 +15,8 @@ import { type FormRef, internalOf } from "./form-ref";
  */
 export function getInput(form: FormRef, path?: Path): unknown {
   const internal = internalOf(form);
-  return getFieldInput(path ? getFieldStore(internal, path) : internal);
+  return getFieldInput(
+    path ? getFieldStore(internal, path) : internal,
+    internal,
+  );
 }
