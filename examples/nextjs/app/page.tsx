@@ -1,6 +1,6 @@
-import Image from "next/image";
 import Link from "next/link";
 import { CodeExample } from "@/components/code-example";
+import Image from "next/image";
 import { CopyChip } from "@/components/copy-chip";
 import { HeroDemo } from "@/components/hero-demo";
 
@@ -58,14 +58,16 @@ export default function Home() {
           </div>
         </div>
         <div className="grid justify-items-center gap-4">
+          {/* The painted logo is glow-on-black; screen blending makes its
+              black plate mathematically vanish into the dark page — no
+              cutout (which washes the glows) and no visible box edge. */}
           <Image
             src="/logo.jpg"
             alt="The jsonisch mascot: a red database record between a cyan open brace and a pink close brace"
-            width={88}
-            height={88}
+            width={172}
+            height={172}
             priority
-            className="rounded-xl"
-            style={{ filter: "drop-shadow(0 0 28px var(--glow-red))" }}
+            style={{ mixBlendMode: "screen" }}
           />
           <HeroDemo />
         </div>
