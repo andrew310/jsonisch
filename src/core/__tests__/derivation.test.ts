@@ -3,7 +3,10 @@ import type { Mock } from "vitest";
 
 import { applyBaseline } from "../../methods/apply-baseline";
 import { insert } from "../../methods/array-ops";
+import { getDirtyInput } from "../../methods/get-dirty-input";
 import { getDirtyPaths } from "../../methods/get-dirty-paths";
+import { getInput } from "../../methods/get-input";
+import { reset } from "../../methods/reset";
 import { setErrors } from "../../methods/errors";
 import { setInput } from "../../methods/set-input";
 import { setOffFormValues } from "../../methods/set-off-form-values";
@@ -794,6 +797,112 @@ describe("derivation", () => {
     });
   });
 
+  describe("outputs excluded from input projection by construction", () => {
+    // The submit-payload half of the same promise: a derived output's KEY
+    // must be ABSENT from `getInput` — an own-key `undefined` survives
+    // `Object.keys`/`in`/spread even though `JSON.stringify` hides it.
+    const exprs = () => ({ sum: stub(["a"], (s) => num(s.a) + 1) });
+    const twoFieldStore = () =>
+      createFormStore({
+        schema: objectSchema({
+          a: { type: "number" },
+          total: formulaField("sum"),
+        }),
+        initialInput: { a: 1 },
+        plugins: testPlugins(makeEngine(exprs())),
+      });
+
+    test("getInput must not carry the derived key at all", () => {
+      const store = twoFieldStore();
+      const out = getInput(store) as Record<string, unknown>;
+      expect(Object.hasOwn(out, "total")).toBe(false);
+      expect(out).toStrictEqual({ a: 1 });
+    });
+
+    test("the validated submit output excludes the derived key too", () => {
+      // `handleSubmit` hands `onSubmit` this projection
+      const store = twoFieldStore();
+      const result = validateFormInput(store);
+      expect(result.success).toBe(true);
+      expect(
+        Object.hasOwn(result.output as Record<string, unknown>, "total"),
+      ).toBe(false);
+    });
+
+    test("a path-targeted read of the output itself stays a raw leaf read", () => {
+      const store = twoFieldStore();
+      expect(getInput(store, ["total"])).toBe(undefined);
+    });
+
+    test("an estimate field keeps its key — its input is the manual value", () => {
+      const store = createFormStore({
+        schema: objectSchema({
+          a: { type: "number" },
+          fee: estimateField("sum"),
+        }),
+        initialInput: { a: 1, fee: { kind: "estimate", value: 42, mode: "estimate" } },
+        plugins: testPlugins(makeEngine(exprs())),
+      });
+      const out = getInput(store) as Record<string, unknown>;
+      expect(out.fee).toBe(42);
+    });
+
+    test("x-server-maintained formula keys are excluded — the codec already drops every formula value", () => {
+      // Mirrors `derivationWire.skipValue`: control "formula" never rides
+      // in a payload, server-maintained included (the server authors it)
+      const store = createFormStore({
+        schema: objectSchema({
+          a: { type: "number" },
+          maturityDate: formulaField("sum", { "x-server-maintained": true }),
+        }),
+        initialInput: { a: 1, maturityDate: "2027-06-01" },
+        plugins: testPlugins(makeEngine(exprs())),
+      });
+      const out = getInput(store) as Record<string, unknown>;
+      expect(Object.hasOwn(out, "maturityDate")).toBe(false);
+      // The store still HOLDS the value — only the projection omits it
+      expect(getInput(store, ["maturityDate"])).toBe("2027-06-01");
+    });
+
+    test("row outputs are absent from getInput and from the dirty whole-array emission", () => {
+      const store = createFormStore({
+        schema: objectSchema({
+          assets: {
+            type: "array",
+            items: objectSchema({
+              id: { type: "string" },
+              landValue: { type: "number" },
+              rowTotal: formulaField("sum2"),
+            }),
+          },
+        }),
+        initialInput: { assets: [{ id: "a1", landValue: 100 }] },
+        plugins: testPlugins(
+          makeEngine({ sum2: stub(["landValue"], (s) => num(s.landValue) + 1) }),
+        ),
+      });
+      const out = getInput(store) as { assets: Array<Record<string, unknown>> };
+      expect(Object.hasOwn(out.assets[0], "rowTotal")).toBe(false);
+
+      // Arrays emit atomically on dirty — rows still exclude their outputs
+      setInput(store, ["assets", 0, "landValue"], 200);
+      const dirty = getDirtyInput(store) as {
+        assets: Array<Record<string, unknown>>;
+      };
+      expect(Object.hasOwn(dirty.assets[0], "rowTotal")).toBe(false);
+      expect(dirty.assets[0].landValue).toBe(200);
+    });
+
+    test("reset keeps the exclusion and restores the deps", () => {
+      const store = twoFieldStore();
+      setInput(store, ["a"], 5);
+      reset(store);
+      const out = getInput(store) as Record<string, unknown>;
+      expect(out).toStrictEqual({ a: 1 });
+      expect(Object.hasOwn(out, "total")).toBe(false);
+    });
+  });
+
   describe("x-server-maintained fields (LOS-567 PR B)", () => {
     test("should pass the stored input through instead of deriving", () => {
       // maturityDate's shape: a formula documents intent, but the server
@@ -853,6 +962,9 @@ describe("derivation", () => {
       expect(derivationSlotAt(store, ["total"])).toBe(undefined);
       expect(estimateSlotAt(store, ["total"])).toBe(undefined);
       expect(total.input.value).toBe(9);
+      // Nothing marks the field an output, so it stays an input: the key
+      // rides in `getInput` with its stored value (the #29 ruling)
+      expect(getInput(store)).toStrictEqual({ a: 1, total: 9 });
     });
 
     test("should walk a row's formula fields as plain value leaves too", () => {

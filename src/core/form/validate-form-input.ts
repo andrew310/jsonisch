@@ -109,7 +109,9 @@ export function validateFormInput(
   internalFormStore.isValidating.value = true;
 
   try {
-    const output = untrack(() => getFieldInput(internalFormStore));
+    const output = untrack(() =>
+      getFieldInput(internalFormStore, internalFormStore),
+    );
     const issues = internalFormStore.validator?.(output);
 
     // Group issues by their resolved target store

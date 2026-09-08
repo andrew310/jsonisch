@@ -119,6 +119,16 @@ export function derivation(
       );
     },
 
+    // A wired formula leaf is an OUTPUT: its key is absent from the input
+    // projections, matching `derivationWire.skipValue` on the codec side
+    // (x-server-maintained included — the server authors that value).
+    // Estimate stores also carry a slot but their input IS the manual
+    // value, and an unwired formula field (no engine, no slot) stays an
+    // ordinary input leaf.
+    fieldIsOutput(ctx, store) {
+      return store.control === "formula" && ctx.state.has(store);
+    },
+
     fieldSnapshot(ctx, store) {
       const slot = ctx.state.get(store);
       if (!slot) return {};

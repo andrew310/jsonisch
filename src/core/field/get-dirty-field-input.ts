@@ -44,7 +44,7 @@ export function getDirtyFieldInput(
     return encodeScopeValues(
       internalFormStore,
       internalFieldStore,
-      getFieldInput(internalFieldStore),
+      getFieldInput(internalFieldStore, internalFormStore),
     );
   }
 
