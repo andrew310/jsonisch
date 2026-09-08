@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.1.3](https://github.com/andrew310/jsonisch/compare/v0.1.2...v0.1.3) (2026-09-08)
+
+
+### Features
+
+* **examples:** Next.js shadcn demo over runtime schemas ([#15](https://github.com/andrew310/jsonisch/issues/15)) ([#27](https://github.com/andrew310/jsonisch/issues/27)) ([41bd1fd](https://github.com/andrew310/jsonisch/commit/41bd1fd6b92cae1cc8d1a9a71437d104c0ab3b47))
+* **examples:** the mockup's glow treatment — card auras + lit focus ring ([#36](https://github.com/andrew310/jsonisch/issues/36)) ([cb77cdd](https://github.com/andrew310/jsonisch/commit/cb77cdd0cf5b8f2841e60799c89d9317d05618ca))
+
+
+### Bug Fixes
+
+* **examples:** demo card tucks under the mascot — square-canvas margin compensated ([#37](https://github.com/andrew310/jsonisch/issues/37)) ([6304f29](https://github.com/andrew310/jsonisch/commit/6304f29ae20df4a521cf17465c609a2f67fd787c))
+* **examples:** hero ambient glow restored; nav uses tight content crop ([#35](https://github.com/andrew310/jsonisch/issues/35)) ([eaf6dec](https://github.com/andrew310/jsonisch/commit/eaf6dec2bd053023239ef258cd5afd8b4c6a8544))
+* **examples:** mascot perches on the card, halo clips behind it ([#38](https://github.com/andrew310/jsonisch/issues/38)) ([369c65b](https://github.com/andrew310/jsonisch/commit/369c65b8a3409ffd41478857da19e44ca9bdb3fd))
+* **examples:** one artwork — nav uses the painted logo via screen blend ([#34](https://github.com/andrew310/jsonisch/issues/34)) ([484cbe4](https://github.com/andrew310/jsonisch/commit/484cbe45f3b88fcfad5a7fb830d151b9c522685f))
+
+
+### Documentation
+
+* link the live site ([#39](https://github.com/andrew310/jsonisch/issues/39)) ([76b8888](https://github.com/andrew310/jsonisch/commit/76b888821d8f6c3b984b5fae1835a1e5d2c85a4d))
+
 ## [0.1.2](https://github.com/andrew310/jsonisch/compare/v0.1.1...v0.1.2) (2026-09-08)
 
 
