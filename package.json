@@ -1,6 +1,6 @@
 {
   "name": "jsonisch",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Schema in, reactive form out. Derive forms from JSON Schema.",
   "license": "MIT",
   "author": "Andrew Brown <andrewbrown600@gmail.com>",
