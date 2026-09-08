@@ -15,11 +15,12 @@ import type {
 } from "../types";
 
 /**
- * The whole point of `CalcEngine`'s shape: a real formula engine's exports
- * pass through without an adapter layer. This suite is optional — jsonisch
- * does not depend on any particular engine, and `@rwa/formulas` is not
- * published with this package. The specifier is a runtime string so tsc
- * does not require the module to be installed.
+ * Runs the derivation plugin against a real formula engine when one is
+ * installed (link `@rwa/formulas` to enable it); otherwise the whole suite
+ * skips. The specifier is a runtime string so tsc does not require the
+ * module, which also means the cast below is UNCHECKED — this suite asserts
+ * runtime behavior only, not that `CalcEngine` still matches the engine's
+ * exported types.
  */
 type FormulasModule = {
   parseFormula: CalcEngine["parse"];
@@ -28,22 +29,26 @@ type FormulasModule = {
   extractPathRefs: NonNullable<CalcEngine["extractPathRefs"]>;
 };
 
-let formulas: FormulasModule | null = null;
+// Only a missing module downgrades to a skip — an installed-but-broken
+// engine must fail loudly, not silently skip six tests.
+let formulas: FormulasModule | undefined;
 try {
   const spec = "@rwa/formulas";
   formulas = (await import(spec)) as FormulasModule;
-} catch {
-  formulas = null;
+} catch (error) {
+  if ((error as { code?: string }).code !== "ERR_MODULE_NOT_FOUND") {
+    throw error;
+  }
 }
 
-const engine: CalcEngine | null = formulas
+const engine: CalcEngine | undefined = formulas
   ? {
       parse: formulas.parseFormula,
       evaluate: formulas.evaluateFormula,
       extractDependencies: formulas.extractDependencies,
       extractPathRefs: formulas.extractPathRefs,
     }
-  : null;
+  : undefined;
 
 /**
  * The derivation slot of the value field at `path` — the plugin owns
@@ -81,7 +86,7 @@ describe.skipIf(!engine)("derivation with the real @rwa/formulas engine", () => 
         contingency: formulaField("totalBudget * 0.1"),
       }),
       initialInput: { hardBudget: 100_000, softBudget: 50_000 },
-      plugins: testPlugins(engine!),
+      plugins: testPlugins(engine),
     });
     expect(derivedAt(store, ["totalBudget"]).value).toBe(150_000);
     expect(derivedAt(store, ["contingency"]).value).toBe(15_000);
@@ -101,7 +106,7 @@ describe.skipIf(!engine)("derivation with the real @rwa/formulas engine", () => 
           { id: "a2", aiv: 400_000 },
         ],
       },
-      plugins: testPlugins(engine!),
+      plugins: testPlugins(engine),
     });
     expect(derivedAt(store, ["totalAiv"]).value).toBe(1_000_000);
     expect(derivationSlotAt(store, ["totalAiv"])?.isRollup).toBe(true);
@@ -123,7 +128,7 @@ describe.skipIf(!engine)("derivation with the real @rwa/formulas engine", () => 
       }),
       initialInput: { total_loan_amount: 500_000 },
       offFormValues: { loan: { total_commitment: 600_000 } },
-      plugins: testPlugins(engine!),
+      plugins: testPlugins(engine),
     });
     expect(derivedAt(store, ["allocatedPercent"]).value).toBeCloseTo(0.8333, 4);
   });
@@ -140,7 +145,7 @@ describe.skipIf(!engine)("derivation with the real @rwa/formulas engine", () => 
       }),
       initialInput: { base: 10 },
       offFormValues: { assets: [{ id: "a1", aiv: 100 }] },
-      plugins: testPlugins(engine!),
+      plugins: testPlugins(engine),
     });
     const bad = getValueStore(store, ["bad"]);
     expect(derivedAt(store, ["bad"]).value).toBe(undefined);
@@ -170,7 +175,7 @@ describe.skipIf(!engine)("derivation with the real @rwa/formulas engine", () => 
         // resolves from the canonical row
         assets: [{ id: "a1", estimatedAiv: 1, liens: 50_000 }],
       },
-      plugins: testPlugins(engine!),
+      plugins: testPlugins(engine),
     });
     expect(
       derivedAt(store, ["assets", 0, "allocatedPercent"]).value,
@@ -194,7 +199,7 @@ describe.skipIf(!engine)("derivation with the real @rwa/formulas engine", () => 
       schema: objectSchema({
         bad: formulaField("1 +"),
       }),
-      plugins: testPlugins(engine!),
+      plugins: testPlugins(engine),
     });
     const bad = getValueStore(store, ["bad"]);
     expect(derivedAt(store, ["bad"]).value).toBe(undefined);

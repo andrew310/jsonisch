@@ -7,10 +7,10 @@ export default defineConfig({
   },
   format: ["esm"],
   dts: true,
-  sourcemap: true,
+  // No sourcemaps: src/ does not ship, and the maps' embedded sourcesContent
+  // would double the package size.
+  sourcemap: false,
   clean: true,
   external: ["react", "react-dom"],
-  outExtensions() {
-    return { js: ".js", dts: ".d.ts" };
-  },
+  fixedExtension: false,
 });
