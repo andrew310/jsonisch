@@ -5,12 +5,9 @@ import type { JsonSchema } from "./types/schema";
  * from JSON-Schema `type` — e.g. "string" can map to many kinds (text,
  * email, currency, …).
  *
- * Uses the settled jsonisch naming from day one (2026-08-03 naming session):
- * `formula` (was `calculated`), `estimate` (was `computed`),
- * `amount-or-percent` (was `hybrid`), `line-item` (was `ledger`). Legacy
- * values translate at read time; DB schemas are never migrated for naming.
- *
- * Closed set. Add explicitly when a new widget actually exists.
+ * Closed set, deliberately opinionated (US-lending-flavored: ein, ssn,
+ * us-state, legal-id, interest-rate, line-item); widgets are host-supplied,
+ * so unused kinds cost nothing. Add explicitly when a new widget exists.
  */
 const CONTROL_KINDS = [
   "text",
@@ -54,50 +51,24 @@ const CONTROL_KINDS = [
 export type ControlKind = (typeof CONTROL_KINDS)[number];
 
 /**
- * Settled names resolve to themselves — derived from the closed set so the
- * union and the lookup can never drift apart.
+ * Derived from the closed set so the union and the lookup can never drift
+ * apart. An unknown name resolves to `undefined` and falls through to the
+ * format/type inference — never to a different kind.
  */
-const settledKinds: ReadonlySet<string> = new Set(CONTROL_KINDS);
+const controlKinds: ReadonlySet<string> = new Set(CONTROL_KINDS);
 
 /**
- * Read-time translations for the legacy `x-field-type` vocabulary
- * (date-picker, multi-select, calculated, hybrid, …). Wire shapes and DB
- * schemas are never migrated for naming.
- */
-const legacyControlMap: Record<string, ControlKind> = {
-  calculated: "formula",
-  computed: "estimate",
-  hybrid: "amount-or-percent",
-  ledger: "line-item",
-  "multi-select": "multiselect",
-  "checkbox-group": "multiselect",
-  "us-state-select": "us-state",
-  "date-picker": "date",
-  "address-array": "address",
-  checkbox: "boolean",
-  switch: "boolean",
-};
-
-/**
- * Resolves an explicit control name (settled or legacy) to a `ControlKind`.
- */
-function resolveControlName(value: unknown): ControlKind | undefined {
-  if (typeof value !== "string") return undefined;
-  if (settledKinds.has(value)) return value as ControlKind;
-  return legacyControlMap[value];
-}
-
-/**
- * Reads the explicit control of a node: the `x-ui.control` namespace first,
- * then the legacy flat `x-field-type` key. Both channels accept settled and
- * legacy names.
+ * Reads the explicit control of a node from the `x-ui.control` namespace —
+ * the only explicit channel. Hosts with schemas in another dialect (e.g.
+ * the origin app's `x-field-type`) translate before handing schemas over.
  */
 function readExplicitControl(schema: JsonSchema): ControlKind | undefined {
   const ui = schema["x-ui"];
-  if (ui && typeof ui === "object") {
-    return resolveControlName((ui as Record<string, unknown>).control);
-  }
-  return resolveControlName(schema["x-field-type"]);
+  if (!ui || typeof ui !== "object") return undefined;
+  const control = (ui as Record<string, unknown>).control;
+  return typeof control === "string" && controlKinds.has(control)
+    ? (control as ControlKind)
+    : undefined;
 }
 
 /**
@@ -111,7 +82,8 @@ function hasType(schema: JsonSchema, type: string): boolean {
 
 /**
  * Reads the relation config of a node from the `x-relation` namespace or the
- * legacy flat `x-relation-target`/`x-relation-multiple` keys.
+ * flat vendor `x-relation-target`/`x-relation-multiple` keys (the sibling-key
+ * form the canonical `$ref: schema://…` shape also uses for its extras).
  */
 function readRelation(
   schema: JsonSchema,
@@ -133,10 +105,10 @@ function readRelation(
  * Decides which UI widget kind a JSON-Schema node renders as.
  *
  * Precedence:
- *   1. Relations — `$ref`, array-of-`$ref`, or `x-relation`/legacy
+ *   1. Relations — `$ref`, array-of-`$ref`, or `x-relation`/flat
  *      `x-relation-target`. Single → select, many → multiselect.
- *   2. Explicit `x-ui.control` or legacy `x-field-type` (translated), plus
- *      the `estimate: true` attribute promoting a formula to an estimate.
+ *   2. Explicit `x-ui.control`, plus the `estimate: true` attribute
+ *      promoting a formula to an estimate.
  *   3. `format` — JSON-Schema standard widget hints on strings.
  *   4. `type` — JSON-Schema primitive fallback.
  *
@@ -159,9 +131,9 @@ export function inferControl(schema: JsonSchema): ControlKind {
     return many ? "multiselect" : "select";
   }
 
-  // 2. Explicit control (settled or legacy, translated at read time). A
-  // formula field carrying `estimate: true` accepts a provisional
-  // manually-entered value and renders as the estimate wrapper.
+  // 2. Explicit control. A formula field carrying `estimate: true` accepts
+  // a provisional manually-entered value and renders as the estimate
+  // wrapper.
   const explicit = readExplicitControl(schema);
   if (explicit) {
     if (explicit === "formula" && schema.estimate === true) return "estimate";

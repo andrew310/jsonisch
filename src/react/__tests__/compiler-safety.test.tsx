@@ -45,7 +45,7 @@ const schema = objectSchema({
   rehabBudget: { type: "number" },
   totalLoanAmount: {
     type: "number",
-    "x-field-type": "calculated",
+    "x-ui": { control: "formula" },
     "x-formula": "purchasePrice + rehabBudget",
   },
 });

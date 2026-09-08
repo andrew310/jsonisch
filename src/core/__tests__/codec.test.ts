@@ -33,7 +33,7 @@ const columnEstimateSchema = objectSchema({
   appraisedValue: {
     type: "number",
     "x-column": true,
-    "x-field-type": "computed",
+    "x-ui": { control: "estimate" },
     "x-formula": "purchasePrice * 1.1",
   },
 });

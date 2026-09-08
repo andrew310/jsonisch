@@ -17,20 +17,19 @@ export const workflowFormSchema: JsonSchema = {
     loanPurpose: {
       type: "string",
       enum: ["purchase", "refinance", "cash-out"],
-      "x-field-type": "select",
+      "x-ui": { control: "select" },
     },
     creditScore: { type: "number" },
-    isEntity: { type: "boolean", "x-field-type": "checkbox" },
+    isEntity: { type: "boolean", "x-ui": { control: "boolean" } },
     closingDate: { type: "string", format: "date" },
-    notes: { type: "string", "x-field-type": "textarea" },
+    notes: { type: "string", "x-ui": { control: "textarea" } },
   },
 };
 
 /**
  * A loan-stage schema slice: `x-column` columns next to data-bag fields,
- * legacy `x-field-type` values (translated to the settled vocabulary at
- * read time), and estimate/amount-or-percent fields whose meta half rides
- * INSIDE their own data-bag entry (the kind-discriminated envelope).
+ * and estimate/amount-or-percent fields whose meta half rides INSIDE their
+ * own data-bag entry (the kind-discriminated envelope).
  */
 export const loanStageSchema: JsonSchema = {
   type: "object",
@@ -40,23 +39,23 @@ export const loanStageSchema: JsonSchema = {
     loanAmount: {
       type: "number",
       "x-column": true,
-      "x-field-type": "currency",
+      "x-ui": { control: "currency" },
     },
     borrowerName: { type: "string", "x-column": true },
     // Data-bag fields
-    purchasePrice: { type: "number", "x-field-type": "currency" },
+    purchasePrice: { type: "number", "x-ui": { control: "currency" } },
     ltv: {
       type: "number",
-      "x-field-type": "calculated",
+      "x-ui": { control: "formula" },
       "x-formula": "loanAmount / purchasePrice",
     },
-    originationFee: { type: "number", "x-field-type": "hybrid" },
+    originationFee: { type: "number", "x-ui": { control: "amount-or-percent" } },
     appraisedValue: {
       type: "number",
-      "x-field-type": "computed",
+      "x-ui": { control: "estimate" },
       "x-formula": "purchasePrice * 1.1",
     },
-    titleFee: { type: "number", "x-field-type": "ledger" },
+    titleFee: { type: "number", "x-ui": { control: "line-item" } },
   },
 };
 
@@ -74,7 +73,7 @@ export const assetsSchema: JsonSchema = {
         required: ["label", "purchasePrice"],
         properties: {
           label: { type: "string" },
-          purchasePrice: { type: "number", "x-field-type": "currency" },
+          purchasePrice: { type: "number", "x-ui": { control: "currency" } },
           appraisedAiv: { type: "number" },
         },
       },

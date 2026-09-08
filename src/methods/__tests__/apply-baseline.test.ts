@@ -380,7 +380,7 @@ describe("applyBaseline", () => {
 
   describe("meta channel (the envelopes plugin's envelope half)", () => {
     const estimateSchema = objectSchema({
-      price: { type: "number", "x-field-type": "computed" },
+      price: { type: "number", "x-ui": { control: "estimate" } },
     });
 
     /**
@@ -466,7 +466,7 @@ describe("applyBaseline", () => {
     test("should rebase amount-or-percent entry state per signal", () => {
       const store = createTestStore(
         objectSchema({
-          fee: { type: "number", "x-field-type": "hybrid" },
+          fee: { type: "number", "x-ui": { control: "amount-or-percent" } },
         }),
         {
           initialInput: {
@@ -501,7 +501,7 @@ describe("applyBaseline", () => {
     // baseline at mount.
     const nestedSchema = objectSchema({
       terms: objectSchema({
-        budget: { type: "number", "x-field-type": "computed" },
+        budget: { type: "number", "x-ui": { control: "estimate" } },
       }),
     });
 

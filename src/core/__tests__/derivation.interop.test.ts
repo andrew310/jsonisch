@@ -73,7 +73,7 @@ function derivedAt(form: InternalFormStore, path: Path): DerivedState {
 }
 
 function formulaField(formula: string): JsonSchema {
-  return { type: "number", "x-field-type": "calculated", "x-formula": formula };
+  return { type: "number", "x-ui": { control: "formula" }, "x-formula": formula };
 }
 
 describe.skipIf(!engine)("derivation with the real @rwa/formulas engine", () => {

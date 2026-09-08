@@ -97,13 +97,13 @@ function estimateSlotAt(
 }
 
 function formulaField(formula: string, extra?: JsonSchema): JsonSchema {
-  return { type: "number", "x-field-type": "calculated", "x-formula": formula, ...extra };
+  return { type: "number", "x-ui": { control: "formula" }, "x-formula": formula, ...extra };
 }
 
 function estimateField(formula: string): JsonSchema {
   return {
     type: "number",
-    "x-field-type": "computed",
+    "x-ui": { control: "estimate" },
     "x-formula": formula,
   };
 }

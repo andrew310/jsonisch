@@ -51,8 +51,7 @@ export interface InternalBaseStore {
   schema: JsonSchema;
   /**
    * The widget kind this field renders as, resolved once at walk time via
-   * `inferControl` (settled vocabulary; legacy `x-field-type` values
-   * translated at read time).
+   * `inferControl`.
    */
   control: ControlKind;
   /**

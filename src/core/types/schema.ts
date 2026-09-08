@@ -3,9 +3,8 @@
  *
  * Structured over the keys the store walk and codec read; everything else
  * (including the `x-*` vocabulary: `x-column`, `x-formula`, `x-ui`,
- * `x-field-type`, `x-relation*`, …) is reachable through the index
- * signature. Schemas are runtime DB data — there is no compile-time value
- * inference.
+ * `x-relation*`, …) is reachable through the index signature. Schemas are
+ * runtime DB data — there is no compile-time value inference.
  */
 export interface JsonSchema {
   /**

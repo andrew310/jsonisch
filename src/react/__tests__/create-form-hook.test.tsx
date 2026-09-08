@@ -111,7 +111,7 @@ describe("createFormHook registry dispatch", () => {
       const form = hook.useAppForm({
         schema: objectSchema({
           name: { type: "string" },
-          amount: { type: "number", "x-field-type": "currency" },
+          amount: { type: "number", "x-ui": { control: "currency" } },
         }),
       });
       return <hook.Form of={form} onSubmit={vi.fn()} />;
@@ -143,7 +143,7 @@ describe("createFormHook registry dispatch", () => {
       const form = hook.useAppForm({
         schema: objectSchema({
           name: { type: "string" },
-          secret: { type: "string", "x-field-type": "hidden" },
+          secret: { type: "string", "x-ui": { control: "hidden" } },
         }),
         initialInput: { name: "a", secret: "kept" },
       });

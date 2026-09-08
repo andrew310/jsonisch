@@ -380,7 +380,7 @@ describe("createFormStore", () => {
       a: { type: "number" },
       fee: {
         type: "number",
-        "x-field-type": "computed",
+        "x-ui": { control: "estimate" },
         "x-formula": "a * 2",
       },
     });

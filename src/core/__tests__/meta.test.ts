@@ -56,14 +56,14 @@ const num = (v: unknown): number => (typeof v === "number" ? v : Number.NaN);
 function estimateField(formula: string, extra?: JsonSchema): JsonSchema {
   return {
     type: "number",
-    "x-field-type": "computed",
+    "x-ui": { control: "estimate" },
     "x-formula": formula,
     ...extra,
   };
 }
 
 function amountOrPercentField(extra?: JsonSchema): JsonSchema {
-  return { type: "string", "x-field-type": "hybrid", ...extra };
+  return { type: "string", "x-ui": { control: "amount-or-percent" }, ...extra };
 }
 
 const doubleA = () => ({
