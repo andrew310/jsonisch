@@ -6,15 +6,14 @@ export function SiteNav() {
     <header className="border-border/60 border-b">
       <nav className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
         <Link href="/" className="flex items-center gap-2.5">
-          {/* mark.png is the tight crop: artwork fills the box, so the
-              lockup centers optically instead of floating in margins. */}
+          {/* mascot.png is the background-removed cylinder sprite: it scales like a
+              glyph beside the wordmark instead of floating in a padded box. */}
           <Image
-            src="/mark.png"
+            src="/mascot.png"
             alt=""
             width={26}
             height={26}
-            className="rounded-md"
-            priority
+                        priority
           />
           <span className="font-mono text-sm font-medium tracking-tight">
             jsonisch
